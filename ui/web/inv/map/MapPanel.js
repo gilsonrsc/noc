@@ -525,7 +525,12 @@ Ext.define("NOC.inv.map.MapPanel", {
     var me = this,
       objectType = me.nodeMenuObjectType;
 
-    if("managedobject" === me.nodeMenuObjectType) objectType = "mo";
+    if("managedobject" === me.nodeMenuObjectType){
+      window.open(
+        "/ui/monitoring-dashboard.html?dashboard=mo&id=" + me.nodeMenuObject,
+      );
+      return;
+    }
     window.open(
       "/ui/grafana/dashboard/script/noc.js?dashboard=" +
         objectType +

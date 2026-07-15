@@ -188,7 +188,7 @@ Ext.define("NOC.sa.managedobject.form.FormController", {
     var formPanel = this.getView().down("[itemId=managedobject-form-panel]");
     if(formPanel.recordId){
       window.open(
-        "/ui/grafana/dashboard/script/noc.js?dashboard=mo&id=" + formPanel.recordId,
+        "/ui/monitoring-dashboard.html?dashboard=mo&id=" + formPanel.recordId,
       );
     }
   },
