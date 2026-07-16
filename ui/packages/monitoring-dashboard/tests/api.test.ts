@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
-import {buildMetricQuery, intervalForRange, loadManifest, readJson} from "../src/api";
+import {buildMetricQuery, intervalForRange, loadManifest, loadSummary, readJson} from "../src/api";
 import {
   compactMetricName,
   compactSeriesTarget,
@@ -15,7 +15,8 @@ import {
   seriesIsStale,
   utilizationState,
 } from "../src/state";
-import type {DashboardEntity, DashboardGroup} from "../src/types";
+import {rankInterfaces, summaryMetrics, utilizationFor} from "../src/summary";
+import type {DashboardEntity, DashboardGroup, SummaryEntity} from "../src/types";
 
 const group: DashboardGroup = {
   id: "interfaces:profile-id",
@@ -79,6 +80,38 @@ describe("readJson", () => {
     });
 
     await expect(readJson(response)).rejects.toThrow("Object not found");
+  });
+});
+
+describe("loadSummary", () => {
+  it("posts a bounded semantic summary request", async () => {
+    const response = {
+      api_version: "1.3",
+      inventory: {total: 0, operational: 0, down: 0, disabled: 0, unknown: 0, optical: 0},
+      entities: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify(response),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(loadSummary("/summary/", "42", "interfaces", ["in"], 1000, 2000)).resolves.toEqual(
+      response,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/summary/",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          object_id: "42",
+          group_id: "interfaces",
+          metric_ids: ["in"],
+          from: 1000,
+          to: 2000,
+        }),
+      }),
+    );
   });
 });
 
@@ -224,5 +257,69 @@ describe("monitoring state", () => {
     expect(utilizationState(80)).toBe("warning");
     expect(utilizationState(95)).toBe("critical");
     expect(seriesIsStale(series, 60, 400_000)).toBe(true);
+  });
+});
+
+describe("dashboard summary", () => {
+  const trafficIn = {
+    id: "traffic-in",
+    name: "Interface | Load | In",
+    description: "",
+    scope: "Interface",
+    category: "traffic" as const,
+    direction: "in" as const,
+    unit: {code: "bit/s", label: "bps"},
+    color: null,
+    is_delta: false,
+    interval: 60,
+    filter_fields: ["interface"],
+  };
+  const trafficOut = {...trafficIn, id: "traffic-out", name: "Interface | Load | Out", direction: "out" as const};
+  const optical = {...trafficIn, id: "optical", name: "Interface | DOM | RxPower", category: "optical" as const};
+  const summaryEntity: SummaryEntity = {
+    id: "if-1",
+    label: "Gi0/1",
+    description: "Uplink",
+    status: "Up/10G/Full",
+    admin_status: true,
+    oper_status: true,
+    capacity: {in_bps: 10_000_000_000, out_bps: 10_000_000_000},
+    capabilities: ["traffic"],
+    metric_ids: ["traffic-in", "traffic-out"],
+    metric_thresholds: {},
+    values: {
+      "traffic-in": {current: 7_000_000_000, average: 5, peak: 9, p95: 8_000_000_000, latest_ts: 1},
+      "traffic-out": {current: 2_000_000_000, average: 2, peak: 4, p95: 3_000_000_000, latest_ts: 1},
+    },
+  };
+
+  it("prioritizes operational summary metrics", () => {
+    const metricGroup = {
+      ...group,
+      metrics: [optical, trafficOut, trafficIn],
+      entities: [{...entity, metric_ids: ["traffic-in", "traffic-out", "optical"]}],
+    };
+    expect(summaryMetrics(metricGroup).map((metric) => metric.id)).toEqual([
+      "traffic-in",
+      "traffic-out",
+      "optical",
+    ]);
+  });
+
+  it("calculates and ranks by p95 utilization", () => {
+    const quiet = {
+      ...summaryEntity,
+      id: "if-2",
+      label: "Gi0/2",
+      values: {
+        ...summaryEntity.values,
+        "traffic-in": {...summaryEntity.values["traffic-in"]!, p95: 1_000_000_000},
+      },
+    };
+    expect(utilizationFor(summaryEntity, trafficIn, "p95")).toBe(80);
+    expect(rankInterfaces([quiet, summaryEntity], [trafficIn, trafficOut]).map((item) => item.id)).toEqual([
+      "if-1",
+      "if-2",
+    ]);
   });
 });

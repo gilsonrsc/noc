@@ -17,13 +17,15 @@ export type MetricCategory =
   | "routing"
   | "other";
 
+export type MetricDirection = "in" | "out" | null;
+
 export interface MetricDescriptor {
   id: string;
   name: string;
   description: string;
   scope: string;
   category: MetricCategory;
-  direction: "in" | "out" | null;
+  direction: MetricDirection;
   unit: UnitDescriptor;
   color: string | null;
   is_delta: boolean;
@@ -97,7 +99,48 @@ export interface DashboardManifest {
   modules: DashboardModule[];
   capabilities: MetricCategory[];
   query: {url: string; method: "POST"};
+  summary: {url: string; method: "POST"};
   legacy_url: string;
+}
+
+export interface MetricReduction {
+  current: number;
+  average: number;
+  peak: number;
+  p95: number;
+  latest_ts: number;
+}
+
+export interface SummaryEntity {
+  id: string;
+  label: string;
+  description: string;
+  status: string;
+  admin_status: boolean | null;
+  oper_status: boolean | null;
+  capacity: DashboardEntity["capacity"];
+  capabilities: MetricCategory[];
+  metric_ids: string[];
+  metric_thresholds: Record<string, MetricThresholdDescriptor[]>;
+  values: Record<string, MetricReduction>;
+}
+
+export interface DashboardSummary {
+  api_version: string;
+  object_id: string;
+  group_id: string;
+  from: number;
+  to: number;
+  latest_ts: number | null;
+  inventory: {
+    total: number;
+    operational: number;
+    down: number;
+    disabled: number;
+    unknown: number;
+    optical: number;
+  };
+  entities: SummaryEntity[];
 }
 
 export interface SeriesRequest {

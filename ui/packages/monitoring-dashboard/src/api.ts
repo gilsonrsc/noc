@@ -2,6 +2,7 @@ import type {
   DashboardEntity,
   DashboardGroup,
   DashboardManifest,
+  DashboardSummary,
   MetricQuery,
   QueryResponse,
 } from "./types";
@@ -81,4 +82,31 @@ export async function loadSeries(url: string, query: MetricQuery): Promise<Query
     body: JSON.stringify(query),
   });
   return readJson<QueryResponse>(response);
+}
+
+export async function loadSummary(
+  url: string,
+  objectId: string,
+  groupId: string,
+  metricIds: string[],
+  from: number,
+  to: number,
+): Promise<DashboardSummary> {
+  const response = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body: JSON.stringify({
+      object_id: objectId,
+      group_id: groupId,
+      metric_ids: metricIds,
+      from,
+      to,
+    }),
+  });
+  return readJson<DashboardSummary>(response);
 }

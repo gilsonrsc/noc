@@ -16,6 +16,14 @@ The implementation keeps the integration surface small:
 - Managed object dashboard actions in the inventory form, map inspector, and map context menu
   open the native renderer.
 
+The renderer separates the workflow into three views:
+
+- **Overview** summarizes inventory state, collection coverage, P95 capacity pressure, and
+  findings based on interface state and matching NOC Metric Rules.
+- **Interfaces** provides a searchable operational table with current traffic, P95 utilization,
+  available signal domains, and a direct path to analysis.
+- **Analysis** queries the selected entity and signals as bounded time series.
+
 Grafana remains available through `legacy_url` in the manifest. Other Grafana dashboard types
 continue to use their existing paths.
 
@@ -28,8 +36,8 @@ GET /pm/ddash/manifest/?dashboard=mo&id=42
 Accept: application/json
 ```
 
-The response describes the object, metric groups, entities, available metrics, query endpoint,
-and legacy Grafana URL. API version 1.2 exposes `metric_ids`, `metric_intervals`,
+The response describes the object, metric groups, entities, available metrics, query endpoints,
+and legacy Grafana URL. API version 1.3 exposes `metric_ids`, `metric_intervals`,
 `metric_thresholds`, and `capabilities` on every entity. Direct thresholds come from matching
 NOC Metric Rules; transformed Metric Actions remain under the metrics service control.
 Interface profiles are consolidated into one interface catalog; the per-entity fields define
@@ -60,6 +68,29 @@ Content-Type: application/json
 The server resolves ClickHouse filters from the selected group and entity. It rejects metrics
 that are not enabled for the managed object, caps the time range, series count, aggregation
 interval, and returned points, and never accepts SQL expressions from the client.
+
+Load bounded interface reductions for the overview and interface catalog:
+
+```http
+POST /pm/ddash/summary/
+Content-Type: application/json
+
+{
+  "object_id": "42",
+  "group_id": "interfaces",
+  "metric_ids": [
+    "65f000000000000000000003",
+    "65f000000000000000000004"
+  ],
+  "from": 1784138400000,
+  "to": 1784142000000
+}
+```
+
+The summary endpoint performs one bounded aggregate query per requested metric and returns
+current, average, peak, P95, and latest sample time per interface. It accepts at most eight
+metrics and 5,000 entities. Threshold classification stays in NOC Metric Rules; the renderer
+does not invent vendor-specific optical limits.
 
 ## Development
 

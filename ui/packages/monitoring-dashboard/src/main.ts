@@ -1,4 +1,4 @@
-import {LineChart} from "echarts/charts";
+import {BarChart, LineChart} from "echarts/charts";
 import {
   DataZoomComponent,
   GridComponent,
@@ -8,14 +8,16 @@ import {
 } from "echarts/components";
 import * as echarts from "echarts/core";
 import {CanvasRenderer} from "echarts/renderers";
-import {buildMetricQuery, loadManifest, loadSeries} from "./api";
+import {buildMetricQuery, loadManifest, loadSeries, loadSummary} from "./api";
 import {
   buildChartOption,
+  buildInterfaceRankingOption,
   compactMetricName,
   formatMetricValueWithUnit,
   SERIES_PALETTE,
   seriesDisplayName,
 } from "./chart";
+import {metricForDirection, rankInterfaces, summaryMetrics, utilizationFor} from "./summary";
 import {
   capacityForSeries,
   defaultMetricView,
@@ -24,7 +26,6 @@ import {
   metricsForEntity,
   metricsForView,
   seriesIsStale,
-  utilizationState,
   type MetricView,
   type MonitorState,
 } from "./state";
@@ -32,13 +33,17 @@ import type {
   DashboardEntity,
   DashboardGroup,
   DashboardManifest,
+  DashboardSummary,
   MetricCategory,
+  MetricDescriptor,
   MetricThresholdDescriptor,
+  SummaryEntity,
   TimeSeries,
 } from "./types";
 import "./styles.css";
 
 echarts.use([
+  BarChart,
   LineChart,
   GridComponent,
   TooltipComponent,
@@ -216,7 +221,7 @@ async function start(): Promise<void> {
   app.replaceChildren();
   const header = element("header", "dashboard-header");
   const identity = element("div", "identity");
-  const eyebrow = element("div", "eyebrow", "Performance monitoring");
+  const eyebrow = element("div", "eyebrow", "Network performance");
   const titleLine = element("div", "title-line");
   titleLine.append(element("span", "live-dot"), element("h1", "object-title", manifest.object.name));
   identity.append(eyebrow, titleLine, element("p", "object-meta", objectMeta(manifest).join(" · ")));
@@ -231,8 +236,21 @@ async function start(): Promise<void> {
 
   const workspace = element("main", "workspace");
   const content = element("section", "content");
+  const viewNav = element("nav", "view-nav");
+  viewNav.setAttribute("aria-label", "Dashboard sections");
+  const overviewButton = element("button", "view-nav-button", "Overview");
+  const interfacesButton = element("button", "view-nav-button", "Interfaces");
+  const analysisButton = element("button", "view-nav-button", "Analysis");
+  for (const button of [overviewButton, interfacesButton, analysisButton]) button.type = "button";
+  viewNav.append(overviewButton, interfacesButton, analysisButton);
+
   const controlBar = element("section", "dashboard-controls");
   const sourceControls = element("div", "source-controls");
+  const scopeSummary = element("div", "scope-summary");
+  scopeSummary.append(
+    element("span", "field-label", "Scope"),
+    element("strong", "scope-summary-value", "All monitored interfaces"),
+  );
   const groupField = element("label", "control-field group-field");
   groupField.append(element("span", "field-label", "Metric profile"));
   const groupSelect = element("select", "control-select");
@@ -247,7 +265,7 @@ async function start(): Promise<void> {
   const activeOnlyInput = element("input");
   activeOnlyInput.type = "checkbox";
   activeOnlyLabel.append(activeOnlyInput, element("span", "", "Operational only"));
-  sourceControls.append(groupField, entityField, activeOnlyLabel);
+  sourceControls.append(scopeSummary, groupField, entityField, activeOnlyLabel);
 
   const rangeField = element("div", "control-field range-field");
   rangeField.append(element("span", "field-label", "Time range"));
@@ -276,6 +294,97 @@ async function start(): Promise<void> {
   updateControls.append(refreshControls, refreshButton);
   controlBar.append(sourceControls, rangeField, updateControls);
 
+  const overviewView = element("section", "dashboard-view overview-view");
+  const overviewHeading = element("header", "view-heading");
+  const overviewHeadingCopy = element("div");
+  overviewHeadingCopy.append(
+    element("div", "eyebrow", "Operational posture"),
+    element("h2", "view-title", "Network overview"),
+    element(
+      "p",
+      "view-subtitle",
+      "Interface state, capacity pressure and collection coverage for this equipment.",
+    ),
+  );
+  const overviewFreshness = element("div", "freshness-indicator", "Waiting for data");
+  overviewHeading.append(overviewHeadingCopy, overviewFreshness);
+  const kpiGrid = element("div", "kpi-grid");
+  const overviewGrid = element("div", "overview-grid");
+  const rankingPanel = element("section", "overview-panel ranking-panel");
+  const rankingHeading = element("header", "panel-heading");
+  const rankingHeadingCopy = element("div");
+  rankingHeadingCopy.append(
+    element("h3", "panel-title", "Capacity pressure"),
+    element("p", "panel-subtitle", "Top interfaces by P95 utilization in the selected period."),
+  );
+  rankingHeading.append(rankingHeadingCopy, element("span", "panel-tag", "P95"));
+  const rankingChartNode = element("div", "ranking-chart");
+  rankingPanel.append(rankingHeading, rankingChartNode);
+  const attentionPanel = element("section", "overview-panel attention-panel");
+  const attentionHeading = element("header", "panel-heading");
+  const attentionHeadingCopy = element("div");
+  attentionHeadingCopy.append(
+    element("h3", "panel-title", "Needs attention"),
+    element(
+      "p",
+      "panel-subtitle",
+      "Down links, configured limit violations and missing measurements.",
+    ),
+  );
+  const attentionCount = element("span", "attention-count", "0");
+  attentionHeading.append(attentionHeadingCopy, attentionCount);
+  const attentionList = element("div", "attention-list");
+  attentionPanel.append(attentionHeading, attentionList);
+  overviewGrid.append(rankingPanel, attentionPanel);
+  overviewView.append(overviewHeading, kpiGrid, overviewGrid);
+
+  const interfacesView = element("section", "dashboard-view interfaces-view");
+  const interfacesHeading = element("header", "view-heading interfaces-heading");
+  const interfacesHeadingCopy = element("div");
+  interfacesHeadingCopy.append(
+    element("div", "eyebrow", "Interface inventory"),
+    element("h2", "view-title", "Interfaces"),
+    element(
+      "p",
+      "view-subtitle",
+      "Compare state, capacity and current traffic before opening a detailed analysis.",
+    ),
+  );
+  const interfaceFilters = element("div", "interface-filters");
+  const interfaceSearch = element("input", "interface-search");
+  interfaceSearch.type = "search";
+  interfaceSearch.placeholder = "Search interface or description";
+  interfaceSearch.setAttribute("aria-label", "Search interfaces");
+  const interfaceStatusFilter = element("select", "table-filter-select");
+  interfaceStatusFilter.setAttribute("aria-label", "Filter interface status");
+  for (const [value, label] of [
+    ["all", "All states"],
+    ["up", "Operational"],
+    ["down", "Down"],
+    ["disabled", "Disabled"],
+    ["unknown", "Unknown"],
+  ] as const) {
+    const option = element("option", "", label);
+    option.value = value;
+    interfaceStatusFilter.append(option);
+  }
+  interfaceFilters.append(interfaceSearch, interfaceStatusFilter);
+  interfacesHeading.append(interfacesHeadingCopy, interfaceFilters);
+  const interfaceTableShell = element("div", "interface-table-shell");
+  const interfaceTable = element("table", "interface-table");
+  interfaceTable.innerHTML = `
+    <thead><tr>
+      <th>Status</th><th>Interface</th><th>Capacity</th><th>Traffic in</th>
+      <th>Traffic out</th><th>P95 load</th><th>Signals</th><th><span class="sr-only">Action</span></th>
+    </tr></thead>
+  `;
+  const interfaceTableBody = element("tbody");
+  interfaceTable.append(interfaceTableBody);
+  interfaceTableShell.append(interfaceTable);
+  interfacesView.append(interfacesHeading, interfaceTableShell);
+
+  const detailView = element("section", "dashboard-view detail-view");
+
   const toolbar = element("div", "toolbar");
   const signalContext = element("section", "signal-context");
   const contextIdentity = element("div", "context-identity");
@@ -296,15 +405,14 @@ async function start(): Promise<void> {
 
   const metricPanel = element("section", "metric-panel");
   const metricPanelHeader = element("div", "metric-panel-header");
+  const presetOptions = element("div", "preset-options");
   const viewIntro = element("div", "view-intro");
   const viewEyebrow = element("div", "section-label");
   const viewDescription = element("p", "view-description");
   viewIntro.append(viewEyebrow, viewDescription);
-  metricPanelHeader.append(viewIntro);
-  const presetOptions = element("div", "preset-options");
-  metricPanelHeader.append(presetOptions);
+  metricPanelHeader.append(presetOptions, viewIntro);
   const metricOptions = element("div", "metric-options");
-  metricPanel.append(metricPanelHeader, metricOptions);
+  metricPanel.append(metricPanelHeader);
 
   const chartCard = element("section", "chart-card");
   const chartHeader = element("div", "chart-header");
@@ -313,7 +421,7 @@ async function start(): Promise<void> {
   const chartSubtitle = element("p", "chart-subtitle", "Recorded measurements");
   chartHeading.append(chartTitle, chartSubtitle);
   const status = element("div", "query-status", "Ready");
-  chartHeader.append(chartHeading, status);
+  chartHeader.append(chartHeading, metricOptions, status);
   const alertBanner = element("div", "alert-banner");
   alertBanner.hidden = true;
   alertBanner.setAttribute("role", "status");
@@ -331,15 +439,23 @@ async function start(): Promise<void> {
   chartStateAction.type = "button";
   chartState.append(chartStateMark, chartStateCopy, chartStateAction);
   chartFrame.append(chartNode, chartState);
-  chartCard.append(chartHeader, alertBanner, seriesSummary, chartFrame);
-  content.append(controlBar, toolbar, metricPanel, chartCard);
+  chartCard.append(toolbar, metricPanel, chartHeader, alertBanner, seriesSummary, chartFrame);
+  detailView.append(chartCard);
+  content.append(viewNav, controlBar, overviewView, interfacesView, detailView);
   workspace.append(content);
   app.append(header, workspace);
 
   const chart = echarts.init(chartNode, undefined, {renderer: "canvas"});
+  const rankingChart = echarts.init(rankingChartNode, undefined, {renderer: "canvas"});
   new ResizeObserver(() => chart.resize()).observe(chartNode);
+  new ResizeObserver(() => rankingChart.resize()).observe(rankingChartNode);
 
-  let activeGroup = manifest.groups[0] as DashboardGroup;
+  type DashboardScreen = "overview" | "interfaces" | "detail";
+
+  const interfaceGroup = manifest.groups.find((group) => group.kind === "interface");
+  const availableSummaryMetrics = interfaceGroup ? summaryMetrics(interfaceGroup) : [];
+  let activeScreen: DashboardScreen = interfaceGroup ? "overview" : "detail";
+  let activeGroup = (interfaceGroup ?? manifest.groups[0]) as DashboardGroup;
   let activeEntity = activeGroup.entities[0] as DashboardEntity;
   let activeView: MetricView = defaultMetricView(metricsForEntity(activeGroup, activeEntity));
   let selectedMetricIds = new Set(
@@ -348,6 +464,8 @@ async function start(): Promise<void> {
   let viewPinned = false;
   let rangeMs = RANGE_OPTIONS[0].value;
   let requestNumber = 0;
+  let summaryRequestNumber = 0;
+  let dashboardSummary: DashboardSummary | null = null;
   let activeOnly = false;
   let refreshTimer: number | undefined;
   let refreshIntervalMs = Number(localStorage.getItem("noc:dashboard:refresh")) || 60_000;
@@ -360,6 +478,49 @@ async function start(): Promise<void> {
     favorites = new Set();
   }
   autoRefreshSelect.value = String(refreshIntervalMs);
+
+  function formatTimestamp(timestamp: number): string {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(timestamp);
+  }
+
+  function formatPercentage(value: number | null): string {
+    return value === null ? "—" : `${value.toFixed(value >= 10 ? 0 : 1)}%`;
+  }
+
+  function updateControlVisibility(): void {
+    const isDetail = activeScreen === "detail";
+    scopeSummary.hidden = isDetail;
+    groupField.hidden = !isDetail || manifest.groups.length < 2;
+    entityField.hidden = !isDetail;
+    activeOnlyLabel.hidden = !isDetail || activeGroup.kind !== "interface";
+  }
+
+  function setScreen(screen: DashboardScreen): void {
+    const screenChanged = activeScreen !== screen;
+    activeScreen = screen;
+    for (const [button, value] of [
+      [overviewButton, "overview"],
+      [interfacesButton, "interfaces"],
+      [analysisButton, "detail"],
+    ] as const) {
+      const selected = value === screen;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-current", selected ? "page" : "false");
+    }
+    overviewView.hidden = screen !== "overview";
+    interfacesView.hidden = screen !== "interfaces";
+    detailView.hidden = screen !== "detail";
+    updateControlVisibility();
+    if (screenChanged) window.scrollTo(0, 0);
+    requestAnimationFrame(() => {
+      if (screen === "overview") rankingChart.resize();
+      if (screen === "detail") chart.resize();
+    });
+  }
 
   function setChartState(
     kind: "hidden" | "loading" | "empty" | "error",
@@ -425,10 +586,20 @@ async function start(): Promise<void> {
         activeGroup.metrics.find((metric) => metric.id === item.metric_id)?.interval ??
         null;
       const stale = seriesIsStale(item, metricInterval, Date.now());
-      const cardState = stale ? "stale" : utilizationState(utilization);
-      states.add(cardState);
       const metric = activeGroup.metrics.find((candidate) => candidate.id === item.metric_id);
       const thresholds = activeEntity.metric_thresholds?.[item.metric_id] ?? [];
+      const matchedThreshold = thresholds.find((threshold) =>
+        thresholdMatches(current, threshold),
+      );
+      const severity = matchedThreshold?.severity?.toLowerCase() ?? "";
+      const cardState: MonitorState = stale
+        ? "stale"
+        : matchedThreshold
+          ? severity.includes("critical") || severity.includes("major")
+            ? "critical"
+            : "warning"
+          : "normal";
+      states.add(cardState);
       const card = element(
         "article",
         `summary-card ${cardState} ${metricDomainClass(metric?.category)}`,
@@ -483,14 +654,351 @@ async function start(): Promise<void> {
     } else if (seriesSummary.childElementCount === 0) {
       setAlert("no-data", "No measurements are available for this view and time range.");
     } else if (states.has("critical")) {
-      setAlert("critical", "Critical utilization: one or more interfaces reached 90% capacity.");
+      setAlert("critical", "A configured critical metric limit has been crossed.");
     } else if (states.has("warning")) {
-      setAlert("warning", "High utilization: one or more interfaces reached 70% capacity.");
+      setAlert("warning", "A configured metric limit has been crossed.");
     } else if (states.has("stale")) {
       setAlert("stale", "Data collection is delayed for one or more metrics.");
     } else {
       setAlert("normal", "");
     }
+  }
+
+  function summaryMetricValue(
+    entity: SummaryEntity,
+    metric: MetricDescriptor | undefined,
+    reduction: "current" | "p95" = "current",
+  ): string {
+    if (!metric) return "—";
+    const value = entity.values[metric.id]?.[reduction];
+    if (value === undefined) return "—";
+    return formatMetricValueWithUnit(value, metric.unit.label || metric.unit.code);
+  }
+
+  function thresholdMatches(value: number, threshold: MetricThresholdDescriptor): boolean {
+    if (threshold.op === "<") return value < threshold.value;
+    if (threshold.op === "<=") return value <= threshold.value;
+    if (threshold.op === ">") return value > threshold.value;
+    return value >= threshold.value;
+  }
+
+  function renderKpi(
+    label: string,
+    value: string,
+    detail: string,
+    state: "neutral" | "positive" | "negative" | "informative" = "neutral",
+  ): HTMLElement {
+    const card = element("article", `kpi-card ${state}`);
+    card.append(
+      element("span", "kpi-label", label),
+      element("strong", "kpi-value", value),
+      element("span", "kpi-detail", detail),
+    );
+    return card;
+  }
+
+  function openInterfaceAnalysis(entityId: string): void {
+    if (!interfaceGroup) return;
+    const entity = interfaceGroup.entities.find((item) => item.id === entityId);
+    if (!entity) return;
+    activeGroup = interfaceGroup;
+    viewPinned = false;
+    activeOnly = false;
+    activeOnlyInput.checked = false;
+    activateEntity(entity, false);
+    renderGroups();
+    renderPresets();
+    renderEntities();
+    renderMetrics();
+    setScreen("detail");
+    void refresh();
+  }
+
+  function renderOverview(summary: DashboardSummary): void {
+    const {inventory} = summary;
+    const operationalPercentage = inventory.total
+      ? (inventory.operational / inventory.total) * 100
+      : 0;
+    const reporting = summary.entities.filter((entity) => Object.keys(entity.values).length).length;
+    kpiGrid.replaceChildren(
+      renderKpi("Interfaces", inventory.total.toLocaleString(), "Inventory sources"),
+      renderKpi(
+        "Operational",
+        inventory.operational.toLocaleString(),
+        `${formatPercentage(operationalPercentage)} of inventory`,
+        "positive",
+      ),
+      renderKpi(
+        "Down",
+        inventory.down.toLocaleString(),
+        inventory.down ? "Requires attention" : "No down interfaces",
+        inventory.down ? "negative" : "positive",
+      ),
+      renderKpi(
+        "Disabled",
+        (inventory.disabled ?? 0).toLocaleString(),
+        "Administratively disabled",
+      ),
+      renderKpi(
+        "Reporting",
+        reporting.toLocaleString(),
+        `${formatPercentage(inventory.total ? (reporting / inventory.total) * 100 : 0)} with data`,
+        "informative",
+      ),
+      renderKpi(
+        "Optical telemetry",
+        inventory.optical.toLocaleString(),
+        "DOM-capable interfaces",
+        "informative",
+      ),
+    );
+
+    const ranked = rankInterfaces(summary.entities, availableSummaryMetrics, 10);
+    const hasRankedValues = ranked.some((entity) =>
+      availableSummaryMetrics.some(
+        (metric) => metric.category === "traffic" && utilizationFor(entity, metric, "p95") !== null,
+      ),
+    );
+    rankingPanel.classList.toggle("is-empty", !hasRankedValues);
+    rankingChartNode.dataset.empty = "No capacity-based traffic samples in this period.";
+    if (hasRankedValues) {
+      rankingChart.setOption(
+        buildInterfaceRankingOption(summary.entities, availableSummaryMetrics),
+        true,
+      );
+    } else {
+      rankingChart.clear();
+    }
+
+    const attention: Array<{
+      entity: SummaryEntity;
+      state: "critical" | "warning" | "missing";
+      title: string;
+      detail: string;
+    }> = [];
+    for (const entity of summary.entities) {
+      if (entity.admin_status === false) continue;
+      if (entity.oper_status === false) {
+        attention.push({
+          entity,
+          state: "critical",
+          title: entity.label,
+          detail: "Interface is down",
+        });
+        continue;
+      }
+      let hasRuleViolation = false;
+      for (const metric of availableSummaryMetrics) {
+        const reduction = entity.values[metric.id];
+        if (!reduction) continue;
+        const threshold = (entity.metric_thresholds[metric.id] ?? []).find((item) =>
+          thresholdMatches(reduction.current, item),
+        );
+        if (!threshold) continue;
+        const severity = threshold.severity?.toLowerCase() ?? "";
+        attention.push({
+          entity,
+          state: severity.includes("critical") || severity.includes("major") ? "critical" : "warning",
+          title: entity.label,
+          detail: `${compactMetricName(metric.name)} crossed ${threshold.op} ${formatMetricValueWithUnit(
+            threshold.value,
+            metric.unit.label || metric.unit.code,
+          )}`,
+        });
+        hasRuleViolation = true;
+        break;
+      }
+      if (!hasRuleViolation && Object.keys(entity.values).length === 0) {
+        attention.push({
+          entity,
+          state: "missing",
+          title: entity.label,
+          detail: "No samples in the selected period",
+        });
+      }
+    }
+    attention.sort((left, right) => {
+      const order = {critical: 0, warning: 1, missing: 2};
+      return order[left.state] - order[right.state] || left.title.localeCompare(right.title);
+    });
+    attentionCount.textContent = attention.length.toLocaleString();
+    attentionList.replaceChildren();
+    if (!attention.length) {
+      const empty = element("div", "attention-empty");
+      empty.append(
+        element("span", "attention-empty-mark", "✓"),
+        element("strong", "", "No active findings"),
+        element("span", "", "No down links or configured metric limits were detected."),
+      );
+      attentionList.append(empty);
+    } else {
+      for (const item of attention.slice(0, 8)) {
+        const action = element("button", `attention-item ${item.state}`);
+        action.type = "button";
+        const copy = element("span", "attention-copy");
+        copy.append(element("strong", "", item.title), element("span", "", item.detail));
+        action.append(element("span", "attention-mark"), copy, element("span", "attention-arrow", "→"));
+        action.addEventListener("click", () => openInterfaceAnalysis(item.entity.id));
+        attentionList.append(action);
+      }
+    }
+
+    overviewFreshness.textContent = summary.latest_ts
+      ? `Latest sample ${formatTimestamp(summary.latest_ts)}`
+      : "No samples in this period";
+    overviewFreshness.className = `freshness-indicator ${summary.latest_ts ? "current" : "empty"}`;
+    overviewView.classList.remove("loading", "error");
+  }
+
+  function renderInterfaceTable(summary: DashboardSummary): void {
+    const query = interfaceSearch.value.trim().toLowerCase();
+    const statusFilter = interfaceStatusFilter.value;
+    const inbound = metricForDirection(availableSummaryMetrics, "traffic", "in");
+    const outbound = metricForDirection(availableSummaryMetrics, "traffic", "out");
+    const filtered = summary.entities
+      .filter((entity) => {
+        const matchesQuery =
+          !query ||
+          entity.label.toLowerCase().includes(query) ||
+          entity.description.toLowerCase().includes(query);
+        const matchesStatus =
+          statusFilter === "all" ||
+          (statusFilter === "up" &&
+            entity.admin_status !== false &&
+            entity.oper_status === true) ||
+          (statusFilter === "down" &&
+            entity.admin_status !== false &&
+            entity.oper_status === false) ||
+          (statusFilter === "disabled" && entity.admin_status === false) ||
+          (statusFilter === "unknown" &&
+            entity.admin_status !== false &&
+            entity.oper_status === null);
+        return matchesQuery && matchesStatus;
+      })
+      .sort((left, right) => {
+        const stateOrder = (entity: SummaryEntity): number => {
+          if (entity.admin_status === false) return 3;
+          if (entity.oper_status === false) return 0;
+          if (entity.oper_status === null) return 1;
+          return 2;
+        };
+        const leftState = stateOrder(left);
+        const rightState = stateOrder(right);
+        return leftState - rightState || left.label.localeCompare(right.label);
+      });
+    interfaceTableBody.replaceChildren();
+    if (!filtered.length) {
+      const row = element("tr", "table-state-row");
+      const cell = element("td", "table-state-cell", "No interfaces match the current filters.");
+      cell.colSpan = 8;
+      row.append(cell);
+      interfaceTableBody.append(row);
+      return;
+    }
+    for (const entity of filtered) {
+      const row = element("tr");
+      const statusCell = element("td");
+      const statusName =
+        entity.admin_status === false
+          ? "Disabled"
+          : entity.oper_status === true
+            ? "Operational"
+            : entity.oper_status === false
+              ? "Down"
+              : "Unknown";
+      const statusClass =
+        entity.admin_status === false
+          ? "disabled"
+          : entity.oper_status === true
+            ? "up"
+            : entity.oper_status === false
+              ? "down"
+              : "unknown";
+      statusCell.append(
+        element(
+          "span",
+          `table-status ${statusClass}`,
+          statusName,
+        ),
+      );
+      const nameCell = element("td", "interface-name-cell");
+      nameCell.append(
+        element("strong", "interface-name", entity.label),
+        element("span", "interface-description", entity.description || "No description"),
+      );
+      const capacity = Math.max(entity.capacity.in_bps, entity.capacity.out_bps);
+      const utilization = Math.max(
+        utilizationFor(entity, inbound, "p95") ?? 0,
+        utilizationFor(entity, outbound, "p95") ?? 0,
+      );
+      const utilizationCell = element("td", "utilization-cell");
+      const utilizationValue =
+        utilizationFor(entity, inbound, "p95") === null &&
+        utilizationFor(entity, outbound, "p95") === null
+          ? null
+          : utilization;
+      utilizationCell.append(element("strong", "utilization-value", formatPercentage(utilizationValue)));
+      if (utilizationValue !== null) {
+        const bar = element("span", "table-utilization-bar");
+        const fill = element("span", "table-utilization-fill");
+        fill.style.width = `${Math.min(100, utilizationValue)}%`;
+        bar.append(fill);
+        utilizationCell.append(bar);
+      }
+      const signalsCell = element("td", "signals-cell");
+      for (const capability of entity.capabilities.slice(0, 3)) {
+        signalsCell.append(element("span", `signal-tag ${metricDomainClass(capability)}`, metricViewLabel(capability)));
+      }
+      const actionCell = element("td", "table-action-cell");
+      const action = element("button", "table-action", "Analyze");
+      action.type = "button";
+      action.addEventListener("click", () => openInterfaceAnalysis(entity.id));
+      actionCell.append(action);
+      row.append(
+        statusCell,
+        nameCell,
+        element("td", "numeric-cell", formatCapacity(capacity)),
+        element("td", "numeric-cell", summaryMetricValue(entity, inbound)),
+        element("td", "numeric-cell", summaryMetricValue(entity, outbound)),
+        utilizationCell,
+        signalsCell,
+        actionCell,
+      );
+      interfaceTableBody.append(row);
+    }
+  }
+
+  function renderSummaryLoading(): void {
+    overviewFreshness.textContent = dashboardSummary ? "Updating…" : "Loading inventory…";
+    overviewFreshness.className = "freshness-indicator loading";
+    if (dashboardSummary) return;
+    overviewView.classList.add("loading");
+    kpiGrid.replaceChildren(
+      ...Array.from({length: 6}, () => element("div", "kpi-card kpi-skeleton")),
+    );
+    rankingPanel.classList.add("is-loading");
+    const row = element("tr", "table-state-row");
+    const cell = element("td", "table-state-cell", "Loading interface summary…");
+    cell.colSpan = 8;
+    row.append(cell);
+    interfaceTableBody.replaceChildren(row);
+  }
+
+  function renderSummaryError(message: string): void {
+    overviewFreshness.textContent = "Update failed";
+    overviewFreshness.className = "freshness-indicator error";
+    if (dashboardSummary) return;
+    overviewView.classList.remove("loading");
+    overviewView.classList.add("error");
+    kpiGrid.replaceChildren(
+      renderKpi("Summary unavailable", "—", "The detailed analysis remains available.", "negative"),
+    );
+    attentionList.replaceChildren(element("div", "attention-empty error", message));
+    const row = element("tr", "table-state-row error");
+    const cell = element("td", "table-state-cell", message);
+    cell.colSpan = 8;
+    row.append(cell);
+    interfaceTableBody.replaceChildren(row);
   }
 
   function renderGroups(): void {
@@ -505,6 +1013,7 @@ async function start(): Promise<void> {
       option.selected = group.id === activeGroup.id;
       groupSelect.append(option);
     }
+    updateControlVisibility();
   }
 
   function renderPresets(): void {
@@ -562,7 +1071,7 @@ async function start(): Promise<void> {
     }
     entitySelect.disabled = filtered.length === 0;
     const isInterface = activeGroup.kind === "interface";
-    activeOnlyLabel.hidden = !isInterface;
+    activeOnlyLabel.hidden = activeScreen !== "detail" || !isInterface;
     favoriteButton.hidden = !isInterface;
     const moduleTitle =
       manifest.modules.find((item) => item.id === activeGroup.module_id)?.title ?? activeGroup.title;
@@ -656,7 +1165,7 @@ async function start(): Promise<void> {
     }
   }
 
-  async function refresh(): Promise<void> {
+  async function refreshDetail(): Promise<void> {
     const metricIds = [...selectedMetricIds];
     if (metricIds.length === 0) {
       chart.clear();
@@ -733,6 +1242,48 @@ async function start(): Promise<void> {
     }
   }
 
+  async function refreshSummary(): Promise<void> {
+    if (!interfaceGroup) {
+      setScreen("detail");
+      await refreshDetail();
+      return;
+    }
+    const currentRequest = ++summaryRequestNumber;
+    refreshButton.setAttribute("disabled", "");
+    renderSummaryLoading();
+    const to = Date.now();
+    const from = to - rangeMs;
+    try {
+      const response = await loadSummary(
+        manifest.summary.url,
+        manifest.object.id,
+        interfaceGroup.id,
+        availableSummaryMetrics.map((metric) => metric.id),
+        from,
+        to,
+      );
+      if (currentRequest !== summaryRequestNumber) return;
+      dashboardSummary = response;
+      renderOverview(response);
+      renderInterfaceTable(response);
+      rankingPanel.classList.remove("is-loading");
+      lastUpdated.textContent = `Updated ${formatTimestamp(Date.now())}`;
+    } catch (error) {
+      if (currentRequest !== summaryRequestNumber) return;
+      renderSummaryError(error instanceof Error ? error.message : "Unable to load interface summary.");
+    } finally {
+      if (currentRequest === summaryRequestNumber) {
+        refreshButton.removeAttribute("disabled");
+        scheduleRefresh();
+      }
+    }
+  }
+
+  async function refresh(): Promise<void> {
+    if (activeScreen === "detail") await refreshDetail();
+    else await refreshSummary();
+  }
+
   entitySelect.addEventListener("change", () => {
     const entity = activeGroup.entities.find((item) => item.id === entitySelect.value);
     if (!entity) return;
@@ -759,6 +1310,7 @@ async function start(): Promise<void> {
     renderPresets();
     renderEntities();
     renderMetrics();
+    setScreen("detail");
     void refresh();
   });
   activeOnlyInput.addEventListener("change", () => {
@@ -771,6 +1323,28 @@ async function start(): Promise<void> {
     else favorites.add(activeEntity.id);
     saveFavorites();
     renderEntities();
+  });
+  overviewButton.addEventListener("click", () => {
+    if (!interfaceGroup) return;
+    setScreen("overview");
+    if (dashboardSummary) renderOverview(dashboardSummary);
+    void refreshSummary();
+  });
+  interfacesButton.addEventListener("click", () => {
+    if (!interfaceGroup) return;
+    setScreen("interfaces");
+    if (dashboardSummary) renderInterfaceTable(dashboardSummary);
+    void refreshSummary();
+  });
+  analysisButton.addEventListener("click", () => {
+    setScreen("detail");
+    void refreshDetail();
+  });
+  interfaceSearch.addEventListener("input", () => {
+    if (dashboardSummary) renderInterfaceTable(dashboardSummary);
+  });
+  interfaceStatusFilter.addEventListener("change", () => {
+    if (dashboardSummary) renderInterfaceTable(dashboardSummary);
   });
   autoRefreshSelect.addEventListener("change", () => {
     refreshIntervalMs = Number(autoRefreshSelect.value);
@@ -797,6 +1371,9 @@ async function start(): Promise<void> {
   renderEntities();
   renderMetrics();
   renderRanges();
+  overviewButton.hidden = !interfaceGroup;
+  interfacesButton.hidden = !interfaceGroup;
+  setScreen(activeScreen);
   pauseButton.toggleAttribute("disabled", refreshIntervalMs === 0);
   await refresh();
 }
