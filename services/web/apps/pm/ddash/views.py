@@ -18,7 +18,7 @@ from noc.sa.models.managedobject import ManagedObject
 from noc.sa.models.useraccess import UserAccess
 from .dashboards.base import BaseDashboard
 from .dashboards.loader import loader
-from .native import NativeDashboardError, build_manifest, query_metrics
+from .native import NativeDashboardError, build_manifest, query_metrics, query_summary
 
 
 class DynamicDashboardApplication(ExtApplication):
@@ -69,6 +69,28 @@ class DynamicDashboardApplication(ExtApplication):
             return self.render_json({"error": str(e)}, status=self.BAD_REQUEST)
         except ClickhouseError:
             self.logger.exception("Native dashboard ClickHouse query failed")
+            return self.render_json(
+                {"error": "Metrics storage is unavailable"}, status=self.INTERNAL_ERROR
+            )
+
+    @view(url=r"^summary/$", method="POST", access="launch", api=True)
+    def api_summary(self, request):
+        """Return bounded aggregate data for the native dashboard."""
+        try:
+            data = orjson.loads(request.body)
+        except ValueError:
+            return self.render_json({"error": "Invalid JSON body"}, status=self.BAD_REQUEST)
+        if not isinstance(data, dict):
+            return self.render_json({"error": "Invalid JSON body"}, status=self.BAD_REQUEST)
+        managed_object = self.get_managed_object(request, data.get("object_id"))
+        if not managed_object:
+            return self.render_json({"error": "Object not found"}, status=self.NOT_FOUND)
+        try:
+            return query_summary(managed_object, data)
+        except NativeDashboardError as e:
+            return self.render_json({"error": str(e)}, status=self.BAD_REQUEST)
+        except ClickhouseError:
+            self.logger.exception("Native dashboard ClickHouse summary failed")
             return self.render_json(
                 {"error": "Metrics storage is unavailable"}, status=self.INTERNAL_ERROR
             )

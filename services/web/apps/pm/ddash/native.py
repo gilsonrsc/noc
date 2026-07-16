@@ -22,10 +22,12 @@ from noc.pm.models.metrictype import MetricType
 from noc.sa.models.managedobject import ManagedObject
 
 
-API_VERSION = "1.2"
+API_VERSION = "1.3"
 MAX_QUERY_RANGE_MS = 31 * 24 * 60 * 60 * 1000
 MAX_QUERY_SERIES = 20
 MAX_QUERY_POINTS = 100_000
+MAX_SUMMARY_METRICS = 8
+MAX_SUMMARY_ENTITIES = 5_000
 MIN_INTERVAL_SECONDS = 10
 MAX_INTERVAL_SECONDS = 24 * 60 * 60
 RX_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -493,6 +495,7 @@ def build_manifest(mo: ManagedObject) -> dict[str, Any]:
             key=lambda item: METRIC_CATEGORY_ORDER.get(item, 999),
         ),
         "query": {"url": "/pm/ddash/query/", "method": "POST"},
+        "summary": {"url": "/pm/ddash/summary/", "method": "POST"},
         "legacy_url": f"/ui/grafana/dashboard/script/noc.js?dashboard=mo&id={mo.id}",
     }
 
@@ -592,6 +595,180 @@ def _query_metric(
         }
         for target, points in sorted(series.items())
     ]
+
+
+def _query_interface_metric_summary(
+    mo: ManagedObject,
+    metric: MetricType,
+    filters: dict[str, Any],
+    start: datetime.datetime,
+    end: datetime.datetime,
+) -> dict[str, dict[str, int | float]]:
+    """Return bounded per-interface reductions for a semantic metric."""
+    allowed_fields = get_allowed_filter_fields(metric)
+    if "managed_object" not in allowed_fields or "interface" not in allowed_fields:
+        raise NativeDashboardError(f"Metric {metric.name} is not available for interfaces")
+    unknown_fields = set(filters) - allowed_fields
+    if unknown_fields:
+        raise NativeDashboardError(
+            f"Unsupported metric filters: {', '.join(sorted(unknown_fields))}"
+        )
+    table = _validate_identifier(metric.scope.table_name)
+    field = _validate_identifier(metric.field_name)
+    value_expression = f"`{field}`"
+    conditions = [
+        "date >= toDate(%s)",
+        "date <= toDate(%s)",
+        "ts >= toDateTime(%s)",
+        "ts <= toDateTime(%s)",
+        "managed_object = %s",
+    ]
+    args: list[str] = [
+        start.date().isoformat(),
+        end.date().isoformat(),
+        start.isoformat(sep=" ", timespec="seconds"),
+        end.isoformat(sep=" ", timespec="seconds"),
+        str(mo.bi_id),
+    ]
+    for filter_name, filter_value in sorted(filters.items()):
+        if not isinstance(filter_value, (str, int, float, bool)):
+            raise NativeDashboardError("Invalid metric filter value")
+        if isinstance(filter_value, float) and not math.isfinite(filter_value):
+            raise NativeDashboardError("Invalid metric filter value")
+        conditions.append(f"`{_validate_identifier(filter_name)}` = %s")
+        args.append(str(filter_value))
+    sql = f"""
+        SELECT
+            interface,
+            argMax({value_expression}, ts) AS current_value,
+            avg({value_expression}) AS average_value,
+            max({value_expression}) AS peak_value,
+            quantile(0.95)({value_expression}) AS p95_value,
+            toUnixTimestamp(max(ts)) * 1000 AS latest_ts
+        FROM `{table}`
+        WHERE {" AND ".join(conditions)}
+        GROUP BY interface
+        ORDER BY interface
+        LIMIT {MAX_SUMMARY_ENTITIES + 1}
+        FORMAT TabSeparated
+    """
+    rows = connection().execute(sql, args=args)
+    if len(rows) > MAX_SUMMARY_ENTITIES:
+        raise NativeDashboardError("The summary returned too many entities")
+    result = {}
+    for interface, current, average, peak, p95, latest_ts in rows:
+        values = [float(current), float(average), float(peak), float(p95)]
+        if not interface or not all(math.isfinite(value) for value in values):
+            continue
+        result[str(interface)] = {
+            "current": values[0],
+            "average": values[1],
+            "peak": values[2],
+            "p95": values[3],
+            "latest_ts": int(latest_ts),
+        }
+    return result
+
+
+def query_summary(mo: ManagedObject, data: dict[str, Any]) -> dict[str, Any]:
+    """Return bounded inventory and metric reductions for an interface group."""
+    start, end, _ = parse_time_range({**data, "interval": 60})
+    manifest = build_manifest(mo)
+    group = next((item for item in manifest["groups"] if item["id"] == data.get("group_id")), None)
+    if not group or group["kind"] != "interface":
+        raise NativeDashboardError("Unknown interface group")
+    if len(group["entities"]) > MAX_SUMMARY_ENTITIES:
+        raise NativeDashboardError("The interface group is too large")
+    metric_ids = data.get("metric_ids")
+    if not isinstance(metric_ids, list) or not metric_ids:
+        raise NativeDashboardError("At least one summary metric is required")
+    if len(metric_ids) > MAX_SUMMARY_METRICS or len(set(metric_ids)) != len(metric_ids):
+        raise NativeDashboardError("Invalid summary metric selection")
+    configured_metrics = {metric["id"]: metric for metric in group["metrics"]}
+    unknown_metrics = set(metric_ids) - set(configured_metrics)
+    if unknown_metrics:
+        raise NativeDashboardError("A summary metric is not enabled for this group")
+
+    common_filters: dict[str, Any] = {}
+    if group["entities"]:
+        first_filters = group["entities"][0]["filters"]
+        for field, value in first_filters.items():
+            if field != "interface" and all(
+                entity["filters"].get(field) == value for entity in group["entities"]
+            ):
+                common_filters[field] = value
+
+    summaries = {}
+    for metric_id in metric_ids:
+        metric = MetricType.get_by_id(metric_id)
+        if not metric:
+            raise NativeDashboardError("Unknown summary metric")
+        metric_config = configured_metrics[metric_id]
+        metric_filters = {
+            field: value
+            for field, value in common_filters.items()
+            if field in metric_config["filter_fields"] and value not in (None, "")
+        }
+        summaries[metric_id] = _query_interface_metric_summary(
+            mo, metric, metric_filters, start, end
+        )
+
+    entities = []
+    latest_ts = 0
+    for entity in group["entities"]:
+        values = {
+            metric_id: summaries[metric_id][entity["label"]]
+            for metric_id in metric_ids
+            if metric_id in entity["metric_ids"] and entity["label"] in summaries[metric_id]
+        }
+        if values:
+            latest_ts = max(latest_ts, max(int(value["latest_ts"]) for value in values.values()))
+        entities.append(
+            {
+                "id": entity["id"],
+                "label": entity["label"],
+                "description": entity["description"],
+                "status": entity["status"],
+                "admin_status": entity["admin_status"],
+                "oper_status": entity["oper_status"],
+                "capacity": entity["capacity"],
+                "capabilities": entity["capabilities"],
+                "metric_ids": entity["metric_ids"],
+                "metric_thresholds": {
+                    metric_id: entity["metric_thresholds"].get(metric_id, [])
+                    for metric_id in metric_ids
+                    if entity["metric_thresholds"].get(metric_id)
+                },
+                "values": values,
+            }
+        )
+    inventory = {
+        "total": len(entities),
+        "operational": sum(
+            entity["admin_status"] is not False and entity["oper_status"] is True
+            for entity in entities
+        ),
+        "down": sum(
+            entity["admin_status"] is not False and entity["oper_status"] is False
+            for entity in entities
+        ),
+        "disabled": sum(entity["admin_status"] is False for entity in entities),
+        "unknown": sum(
+            entity["admin_status"] is not False and entity["oper_status"] is None
+            for entity in entities
+        ),
+        "optical": sum("optical" in entity["capabilities"] for entity in entities),
+    }
+    return {
+        "api_version": API_VERSION,
+        "object_id": str(mo.id),
+        "group_id": group["id"],
+        "from": int(start.timestamp() * 1000),
+        "to": int(end.timestamp() * 1000),
+        "latest_ts": latest_ts or None,
+        "inventory": inventory,
+        "entities": entities,
+    }
 
 
 def query_metrics(mo: ManagedObject, data: dict[str, Any]) -> dict[str, Any]:

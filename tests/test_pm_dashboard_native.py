@@ -20,6 +20,7 @@ from noc.services.web.apps.pm.ddash.native import (
     _filter_orphan_series,
     _get_interface_groups,
     _get_metric_thresholds,
+    _query_interface_metric_summary,
     _query_metric,
     get_allowed_filter_fields,
     get_metric_category,
@@ -27,6 +28,7 @@ from noc.services.web.apps.pm.ddash.native import (
     metric_to_dict,
     parse_time_range,
     query_metrics,
+    query_summary,
 )
 
 
@@ -217,6 +219,53 @@ def test_query_metric_uses_clickhouse_datetime_precision(monkeypatch):
         "2026-07-15 22:34:31",
         "42",
     ]
+
+
+def test_query_interface_metric_summary_reduces_by_interface(monkeypatch):
+    captured = {}
+
+    class FakeConnection:
+        def execute(self, sql, args):
+            captured["sql"] = sql
+            captured["args"] = args
+            return [["Gi0/1", 80.0, 50.0, 95.0, 90.0, 1_700_003_600_000]]
+
+    metric = SimpleNamespace(
+        name="Interface | Load | In",
+        field_name="load_in",
+        scope=SimpleNamespace(
+            table_name="interface",
+            key_fields=[SimpleNamespace(field_name="managed_object")],
+            labels=[
+                SimpleNamespace(store_column="interface", view_column=""),
+                SimpleNamespace(store_column="subinterface", view_column=""),
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.connection", lambda: FakeConnection()
+    )
+
+    result = _query_interface_metric_summary(
+        SimpleNamespace(bi_id=42),
+        metric,
+        {"subinterface": ""},
+        datetime.datetime(2026, 7, 15, 21, 0, 0),
+        datetime.datetime(2026, 7, 15, 22, 0, 0),
+    )
+
+    assert "quantile(0.95)" in captured["sql"]
+    assert "GROUP BY interface" in captured["sql"]
+    assert captured["args"][-2:] == ["42", ""]
+    assert result == {
+        "Gi0/1": {
+            "current": 80.0,
+            "average": 50.0,
+            "peak": 95.0,
+            "p95": 90.0,
+            "latest_ts": 1_700_003_600_000,
+        }
+    }
 
 
 def test_parse_time_range():
@@ -444,3 +493,87 @@ def test_query_metrics_rejects_excessive_estimated_points():
                 ],
             },
         )
+
+
+def test_query_summary_merges_inventory_and_metric_reductions(monkeypatch):
+    entity = {
+        "id": "interface-id",
+        "label": "Gi0/1",
+        "description": "Uplink",
+        "status": "Up/10G/Full",
+        "admin_status": True,
+        "oper_status": True,
+        "capacity": {"in_bps": 10_000_000_000, "out_bps": 10_000_000_000},
+        "filters": {"interface": "Gi0/1", "subinterface": ""},
+        "metric_ids": ["traffic-in"],
+        "metric_thresholds": {"traffic-in": []},
+        "capabilities": ["traffic", "optical"],
+    }
+    disabled_entity = {
+        **entity,
+        "id": "disabled-interface-id",
+        "label": "Gi0/2",
+        "description": "Reserved",
+        "status": "Down/10G/Full",
+        "admin_status": False,
+        "oper_status": False,
+        "filters": {"interface": "Gi0/2", "subinterface": ""},
+    }
+    manifest = {
+        "groups": [
+            {
+                "id": "interfaces",
+                "kind": "interface",
+                "metrics": [{"id": "traffic-in", "filter_fields": ["interface"]}],
+                "entities": [entity, disabled_entity],
+            }
+        ]
+    }
+    metric = SimpleNamespace(id="traffic-in")
+    captured = {}
+
+    def query_metric_summary(_mo, _metric, filters, _start, _end):
+        captured.update(filters)
+        return {
+            "Gi0/1": {
+                "current": 8_000_000_000.0,
+                "average": 5_000_000_000.0,
+                "peak": 9_000_000_000.0,
+                "p95": 8_500_000_000.0,
+                "latest_ts": 1_700_003_600_000,
+            }
+        }
+
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.build_manifest", lambda _mo: manifest
+    )
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.MetricType.get_by_id", lambda _id: metric
+    )
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native._query_interface_metric_summary",
+        query_metric_summary,
+    )
+
+    result = query_summary(
+        SimpleNamespace(id=42),
+        {
+            "object_id": "42",
+            "group_id": "interfaces",
+            "metric_ids": ["traffic-in"],
+            "from": 1_700_000_000_000,
+            "to": 1_700_003_600_000,
+        },
+    )
+
+    assert captured == {}
+    assert result["inventory"] == {
+        "total": 2,
+        "operational": 1,
+        "down": 0,
+        "disabled": 1,
+        "unknown": 0,
+        "optical": 2,
+    }
+    assert result["latest_ts"] == 1_700_003_600_000
+    assert result["entities"][0]["values"]["traffic-in"]["p95"] == 8_500_000_000.0
