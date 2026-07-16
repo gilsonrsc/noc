@@ -38,6 +38,7 @@ const entity: DashboardEntity = {
   filters: {interface: "Gi0/1"},
   metric_ids: [],
   metric_intervals: {},
+  metric_thresholds: {},
   capabilities: ["traffic", "errors"],
 };
 

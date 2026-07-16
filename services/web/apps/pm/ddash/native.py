@@ -17,11 +17,12 @@ from noc.config import config
 from noc.core.clickhouse.connect import connection
 from noc.core.clickhouse.error import ClickhouseError
 from noc.inv.models.interface import Interface
+from noc.pm.models.metricrule import MetricRule
 from noc.pm.models.metrictype import MetricType
 from noc.sa.models.managedobject import ManagedObject
 
 
-API_VERSION = "1.1"
+API_VERSION = "1.2"
 MAX_QUERY_RANGE_MS = 31 * 24 * 60 * 60 * 1000
 MAX_QUERY_SERIES = 20
 MAX_QUERY_POINTS = 100_000
@@ -185,6 +186,75 @@ def _get_device_metrics(mo: ManagedObject) -> list[dict[str, Any]]:
     return sorted(metrics.values(), key=lambda item: item["name"])
 
 
+def _get_metric_thresholds(
+    context: dict[str, Any], scope: str, metric_ids: set[str]
+) -> dict[str, list[dict[str, Any]]]:
+    """Return direct metric thresholds from matching native Metric Rules."""
+    result: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for rule_id, action_id in MetricRule.get_affected_rules(context, scope=scope):
+        if action_id not in metric_ids:
+            # Metric Actions may transform several inputs and must remain under
+            # the metrics service control. Only direct Metric Type actions are
+            # safe to represent as boundaries for a raw dashboard series.
+            continue
+        rule = MetricRule.get_by_id(rule_id)
+        if not rule:
+            continue
+        action = next(
+            (
+                item
+                for item in rule.actions
+                if item.is_active and item.metric_type and str(item.metric_type.id) == action_id
+            ),
+            None,
+        )
+        if not action:
+            continue
+        for threshold in action.thresholds:
+            alarm_class = threshold.alarm_class
+            alarm_labels = list(threshold.alarm_labels or [])
+            severity_labels = [
+                *alarm_labels,
+                *(list(alarm_class.labels or []) if alarm_class else []),
+            ]
+            severity = next(
+                (
+                    label.removeprefix("noc::severity::").lower()
+                    for label in severity_labels
+                    if label.startswith("noc::severity::")
+                ),
+                None,
+            )
+            result[action_id].append(
+                {
+                    "op": threshold.op,
+                    "value": threshold.value,
+                    "clear_value": threshold.clear_value,
+                    "alarm_class": alarm_class.name if alarm_class else None,
+                    "alarm_labels": alarm_labels,
+                    "severity": severity,
+                    "rule_id": str(rule.id),
+                    "rule_name": rule.name,
+                }
+            )
+    return dict(result)
+
+
+def _get_entity_metric_thresholds(
+    context: dict[str, Any], metric_ids: set[str]
+) -> dict[str, list[dict[str, Any]]]:
+    """Resolve direct thresholds for metrics spanning one or more scopes."""
+    metrics_by_scope: dict[str, set[str]] = defaultdict(set)
+    for metric_id in metric_ids:
+        metric = MetricType.get_by_id(metric_id)
+        if metric:
+            metrics_by_scope[metric.scope.table_name].add(metric_id)
+    result = {}
+    for scope, scoped_metric_ids in metrics_by_scope.items():
+        result.update(_get_metric_thresholds(context, scope, scoped_metric_ids))
+    return result
+
+
 def _get_latest_interface_state(
     mo: ManagedObject,
 ) -> dict[str, tuple[int, bool | None, bool | None]]:
@@ -283,6 +353,14 @@ def _get_interface_groups(mo: ManagedObject) -> list[dict[str, Any]]:
         metric_intervals = {
             metric["id"]: metric["interval"] for metric in metrics if metric["interval"]
         }
+        metric_thresholds = _get_metric_thresholds(
+            {
+                "labels": list(getattr(interface, "effective_labels", []) or []),
+                "service_groups": list(getattr(mo, "effective_service_groups", []) or []),
+            },
+            "interface",
+            set(metric_ids),
+        )
         capabilities = sorted(
             {metric["category"] for metric in metrics},
             key=lambda item: METRIC_CATEGORY_ORDER.get(item, 999),
@@ -310,6 +388,7 @@ def _get_interface_groups(mo: ManagedObject) -> list[dict[str, Any]]:
                 },
                 "metric_ids": metric_ids,
                 "metric_intervals": metric_intervals,
+                "metric_thresholds": metric_thresholds,
                 "capabilities": capabilities,
             }
         )
@@ -334,6 +413,9 @@ def build_manifest(mo: ManagedObject) -> dict[str, Any]:
     groups = []
     if device_metrics:
         device_metric_ids = [metric["id"] for metric in device_metrics]
+        device_metric_thresholds = _get_entity_metric_thresholds(
+            mo.get_matcher_ctx(), set(device_metric_ids)
+        )
         groups.append(
             {
                 "id": "device",
@@ -358,6 +440,7 @@ def build_manifest(mo: ManagedObject) -> dict[str, Any]:
                             for metric in device_metrics
                             if metric["interval"]
                         },
+                        "metric_thresholds": device_metric_thresholds,
                         "capabilities": sorted(
                             {metric["category"] for metric in device_metrics},
                             key=lambda item: METRIC_CATEGORY_ORDER.get(item, 999),

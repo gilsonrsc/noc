@@ -29,10 +29,12 @@ Accept: application/json
 ```
 
 The response describes the object, metric groups, entities, available metrics, query endpoint,
-and legacy Grafana URL. API version 1.1 exposes `metric_ids`, `metric_intervals`, and
-`capabilities` on every entity. Interface profiles are consolidated into one interface catalog;
-the per-entity fields define which signals are valid for each interface. Clients should select
-identifiers from this response rather than constructing database filters.
+and legacy Grafana URL. API version 1.2 exposes `metric_ids`, `metric_intervals`,
+`metric_thresholds`, and `capabilities` on every entity. Direct thresholds come from matching
+NOC Metric Rules; transformed Metric Actions remain under the metrics service control.
+Interface profiles are consolidated into one interface catalog; the per-entity fields define
+which signals are valid for each interface. Clients should select identifiers from this response
+rather than constructing database filters.
 
 Query selected series:
 

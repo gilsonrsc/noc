@@ -31,6 +31,17 @@ export interface MetricDescriptor {
   filter_fields: string[];
 }
 
+export interface MetricThresholdDescriptor {
+  op: "<" | "<=" | ">=" | ">";
+  value: number;
+  clear_value: number | null;
+  alarm_class: string | null;
+  alarm_labels: string[];
+  severity: string | null;
+  rule_id: string;
+  rule_name: string;
+}
+
 export interface DashboardEntity {
   id: string;
   label: string;
@@ -46,6 +57,7 @@ export interface DashboardEntity {
   filters: Record<string, string | number | boolean>;
   metric_ids: string[];
   metric_intervals: Record<string, number>;
+  metric_thresholds: Record<string, MetricThresholdDescriptor[]>;
   capabilities: MetricCategory[];
 }
 

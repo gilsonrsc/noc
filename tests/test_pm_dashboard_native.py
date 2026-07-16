@@ -19,6 +19,7 @@ from noc.services.web.apps.pm.ddash.native import (
     _format_interface_status,
     _filter_orphan_series,
     _get_interface_groups,
+    _get_metric_thresholds,
     _query_metric,
     get_allowed_filter_fields,
     get_metric_category,
@@ -95,6 +96,10 @@ def test_interface_groups_are_unified_with_entity_metric_capabilities(monkeypatc
     )
     monkeypatch.setattr("noc.services.web.apps.pm.ddash.native._get_metric_configs", get_configs)
     monkeypatch.setattr("noc.services.web.apps.pm.ddash.native.metric_to_dict", serialize_metric)
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native._get_metric_thresholds",
+        lambda *_args, **_kwargs: {},
+    )
 
     groups = _get_interface_groups(SimpleNamespace(id=42))
 
@@ -110,6 +115,65 @@ def test_interface_groups_are_unified_with_entity_metric_capabilities(monkeypatc
         "optical": 300,
     }
     assert groups[0]["entities"][1]["metric_ids"] == ["traffic"]
+
+
+def test_metric_thresholds_reuse_matching_native_metric_rules(monkeypatch):
+    alarm_class = SimpleNamespace(name="NOC | PM | Low Warning", labels=["noc::severity::warning"])
+    threshold = SimpleNamespace(
+        op="<=",
+        value=-18.0,
+        clear_value=-17.5,
+        alarm_class=alarm_class,
+        alarm_labels=["noc::dashboard::optical"],
+    )
+    action = SimpleNamespace(
+        is_active=True,
+        metric_type=SimpleNamespace(id="optical-rx"),
+        thresholds=[threshold],
+    )
+    rule = SimpleNamespace(id="rule-id", name="Optical Rx warning", actions=[action])
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.MetricRule.get_affected_rules",
+        lambda context, scope: [["rule-id", "optical-rx"]],
+    )
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.MetricRule.get_by_id", lambda _id: rule
+    )
+
+    assert _get_metric_thresholds(
+        {"labels": ["noc::interface::uplink"], "service_groups": []},
+        "interface",
+        {"optical-rx"},
+    ) == {
+        "optical-rx": [
+            {
+                "op": "<=",
+                "value": -18.0,
+                "clear_value": -17.5,
+                "alarm_class": "NOC | PM | Low Warning",
+                "alarm_labels": ["noc::dashboard::optical"],
+                "severity": "warning",
+                "rule_id": "rule-id",
+                "rule_name": "Optical Rx warning",
+            }
+        ]
+    }
+
+
+def test_metric_thresholds_ignore_transformed_metric_actions(monkeypatch):
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.MetricRule.get_affected_rules",
+        lambda context, scope: [["rule-id", "metric-action-id"]],
+    )
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.MetricRule.get_by_id",
+        lambda _id: pytest.fail("transformed action must not be loaded"),
+    )
+
+    assert (
+        _get_metric_thresholds({"labels": [], "service_groups": []}, "interface", {"optical-rx"})
+        == {}
+    )
 
 
 def test_query_metric_uses_clickhouse_datetime_precision(monkeypatch):
