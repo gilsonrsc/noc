@@ -23,6 +23,7 @@ from noc.services.web.apps.pm.ddash.native import (
     _get_metric_thresholds,
     _query_interface_metric_summary,
     _query_metric,
+    build_manifest,
     get_allowed_filter_fields,
     get_metric_category,
     get_metric_direction,
@@ -381,6 +382,53 @@ def test_metric_to_dict():
 def test_metric_capability_is_vendor_neutral(name, scope, category):
     metric = SimpleNamespace(name=name, scope=SimpleNamespace(name=scope))
     assert get_metric_category(metric) == category
+
+
+@pytest.mark.parametrize("vendor", ["Huawei", "Cisco", "Juniper", "MikroTik", "Nokia"])
+def test_manifest_contract_is_independent_of_vendor(monkeypatch, vendor):
+    interface_group = {
+        "id": "interfaces",
+        "title": "Interfaces",
+        "kind": "interface",
+        "module_id": "interfaces",
+        "metrics": [
+            {"id": "traffic-in", "category": "traffic"},
+            {"id": "optical-rx", "category": "optical"},
+        ],
+        "entities": [],
+    }
+    monkeypatch.setattr("noc.services.web.apps.pm.ddash.native._get_device_metrics", lambda _mo: [])
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native._get_interface_groups",
+        lambda _mo: [interface_group],
+    )
+    managed_object = SimpleNamespace(
+        id=42,
+        bi_id=4200,
+        name="edge-01",
+        address="192.0.2.1",
+        description="Multivendor edge",
+        platform=SimpleNamespace(name="Test platform"),
+        version=SimpleNamespace(version="1.0"),
+        vendor=vendor,
+        segment=None,
+        pool=SimpleNamespace(name="default"),
+    )
+
+    manifest = build_manifest(managed_object)
+
+    assert manifest["object"]["vendor"] == vendor
+    assert manifest["groups"] == [interface_group]
+    assert manifest["modules"] == [
+        {
+            "id": "interfaces",
+            "title": "Interfaces",
+            "kind": "interface",
+            "group_ids": ["interfaces"],
+            "capabilities": ["traffic", "optical"],
+        }
+    ]
+    assert manifest["capabilities"] == ["traffic", "optical"]
 
 
 def test_metric_direction():
