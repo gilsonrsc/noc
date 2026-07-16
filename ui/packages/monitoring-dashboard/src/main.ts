@@ -225,6 +225,36 @@ async function start(): Promise<void> {
   legacyLink.href = manifest.legacy_url;
   legacyLink.target = "_blank";
   legacyLink.rel = "noopener";
+  const lastUpdated = element("span", "last-updated", "Not updated yet");
+  headerActions.append(lastUpdated, legacyLink);
+  header.append(identity, headerActions);
+
+  const workspace = element("main", "workspace");
+  const content = element("section", "content");
+  const controlBar = element("section", "dashboard-controls");
+  const sourceControls = element("div", "source-controls");
+  const groupField = element("label", "control-field group-field");
+  groupField.append(element("span", "field-label", "Metric profile"));
+  const groupSelect = element("select", "control-select");
+  groupSelect.setAttribute("aria-label", "Metric profile");
+  groupField.append(groupSelect);
+  const entityField = element("label", "control-field entity-field");
+  entityField.append(element("span", "field-label", "Source"));
+  const entitySelect = element("select", "control-select");
+  entitySelect.setAttribute("aria-label", "Selected source");
+  entityField.append(entitySelect);
+  const activeOnlyLabel = element("label", "filter-toggle");
+  const activeOnlyInput = element("input");
+  activeOnlyInput.type = "checkbox";
+  activeOnlyLabel.append(activeOnlyInput, element("span", "", "Operational only"));
+  sourceControls.append(groupField, entityField, activeOnlyLabel);
+
+  const rangeField = element("div", "control-field range-field");
+  rangeField.append(element("span", "field-label", "Time range"));
+  const ranges = element("div", "range-options");
+  rangeField.append(ranges);
+
+  const updateControls = element("div", "update-controls");
   const refreshControls = element("div", "refresh-controls");
   const autoRefreshSelect = element("select", "compact-select");
   autoRefreshSelect.setAttribute("aria-label", "Automatic refresh interval");
@@ -236,44 +266,16 @@ async function start(): Promise<void> {
   const pauseButton = element("button", "button secondary compact", "Pause");
   pauseButton.type = "button";
   pauseButton.setAttribute("aria-pressed", "false");
-  const lastUpdated = element("span", "last-updated", "Not updated yet");
   refreshControls.append(
     element("span", "refresh-label", "Auto"),
     autoRefreshSelect,
     pauseButton,
-    lastUpdated,
   );
   const refreshButton = element("button", "button primary", "Refresh");
   refreshButton.type = "button";
-  headerActions.append(refreshControls, legacyLink, refreshButton);
-  header.append(identity, headerActions);
+  updateControls.append(refreshControls, refreshButton);
+  controlBar.append(sourceControls, rangeField, updateControls);
 
-  const workspace = element("main", "workspace");
-  const sidebar = element("aside", "sidebar");
-  sidebar.append(element("div", "section-label", "Navigate"));
-  const groupList = element("nav", "group-list");
-  const explorer = element("section", "entity-explorer");
-  const explorerHeader = element("div", "explorer-header");
-  const explorerTitle = element("div", "section-label", "Sources");
-  const entityCount = element("span", "entity-count", "0");
-  explorerHeader.append(explorerTitle, entityCount);
-  const entityTools = element("div", "entity-tools");
-  const entitySearch = element("input", "entity-search");
-  entitySearch.type = "search";
-  entitySearch.placeholder = "Filter by name or description";
-  entitySearch.setAttribute("aria-label", "Search interfaces");
-  const activeOnlyLabel = element("label", "filter-toggle");
-  const activeOnlyInput = element("input");
-  activeOnlyInput.type = "checkbox";
-  activeOnlyLabel.append(activeOnlyInput, element("span", "", "Operational only"));
-  entityTools.append(entitySearch, activeOnlyLabel);
-  const entityList = element("div", "entity-list");
-  const entitySelect = element("select", "sr-only");
-  entitySelect.setAttribute("aria-label", "Selected entity");
-  explorer.append(explorerHeader, entityTools, entityList, entitySelect);
-  sidebar.append(groupList, explorer);
-
-  const content = element("section", "content");
   const toolbar = element("div", "toolbar");
   const signalContext = element("section", "signal-context");
   const contextIdentity = element("div", "context-identity");
@@ -290,11 +292,7 @@ async function start(): Promise<void> {
   const contextFacts = element("dl", "context-facts");
   const entityStatus = element("span", "entity-status");
   signalContext.append(contextIdentity, contextFacts, entityStatus);
-  const rangeField = element("div", "field range-field");
-  rangeField.append(element("span", "field-label", "Time range"));
-  const ranges = element("div", "range-options");
-  rangeField.append(ranges);
-  toolbar.append(signalContext, rangeField);
+  toolbar.append(signalContext);
 
   const metricPanel = element("section", "metric-panel");
   const metricPanelHeader = element("div", "metric-panel-header");
@@ -334,8 +332,8 @@ async function start(): Promise<void> {
   chartState.append(chartStateMark, chartStateCopy, chartStateAction);
   chartFrame.append(chartNode, chartState);
   chartCard.append(chartHeader, alertBanner, seriesSummary, chartFrame);
-  content.append(toolbar, metricPanel, chartCard);
-  workspace.append(sidebar, content);
+  content.append(controlBar, toolbar, metricPanel, chartCard);
+  workspace.append(content);
   app.append(header, workspace);
 
   const chart = echarts.init(chartNode, undefined, {renderer: "canvas"});
@@ -352,7 +350,6 @@ async function start(): Promise<void> {
   let requestNumber = 0;
   let activeOnly = false;
   let refreshTimer: number | undefined;
-  let searchTimer: number | undefined;
   let refreshIntervalMs = Number(localStorage.getItem("noc:dashboard:refresh")) || 60_000;
   let refreshPaused = false;
   const favoriteKey = `noc:dashboard:favorites:${manifest.object.id}`;
@@ -497,43 +494,16 @@ async function start(): Promise<void> {
   }
 
   function renderGroups(): void {
-    groupList.replaceChildren();
+    groupSelect.replaceChildren();
     for (const group of manifest.groups) {
       const module = manifest.modules.find((item) => item.id === group.module_id);
       const groupHeading =
         module && module.group_ids.length > 1 ? group.title : (module?.title ?? group.title);
-      const button = element("button", "group-button");
-      button.type = "button";
-      if (group.id === activeGroup.id) button.classList.add("active");
-      if (group.id === activeGroup.id) button.setAttribute("aria-current", "page");
-      const labels = element("span", "group-label");
-      labels.append(element("strong", "group-title", groupHeading));
-      labels.append(
-        element(
-          "span",
-          "group-detail",
-          `${group.entities.length} ${group.entities.length === 1 ? "entity" : "entities"} / ${(module?.capabilities ?? []).map((item) => metricViewLabel(item)).join(" + ")}`,
-        ),
-      );
-      const capabilityCount = module?.capabilities.length ?? group.metrics.length;
-      button.append(labels, element("span", "group-count", String(capabilityCount).padStart(2, "0")));
-      button.addEventListener("click", () => {
-        activeGroup = group;
-        viewPinned = false;
-        const firstEntity =
-          group.entities.find((entity) => favorites.has(entity.id)) ??
-          group.entities.find((entity) => entity.oper_status === true) ??
-          group.entities[0];
-        if (!firstEntity) return;
-        activateEntity(firstEntity, false);
-        entitySearch.value = "";
-        renderGroups();
-        renderPresets();
-        renderEntities();
-        renderMetrics();
-        void refresh();
-      });
-      groupList.append(button);
+      const option = element("option");
+      option.value = group.id;
+      option.textContent = `${groupHeading} · ${group.entities.length} ${group.entities.length === 1 ? "source" : "sources"}`;
+      option.selected = group.id === activeGroup.id;
+      groupSelect.append(option);
     }
   }
 
@@ -566,15 +536,8 @@ async function start(): Promise<void> {
   }
 
   function renderEntities(): void {
-    const search = entitySearch.value.trim().toLocaleLowerCase();
     const filtered = activeGroup.entities
       .filter((entity) => !activeOnly || entity.oper_status === true)
-      .filter(
-        (entity) =>
-          !search ||
-          entity.label.toLocaleLowerCase().includes(search) ||
-          entity.description.toLocaleLowerCase().includes(search),
-      )
       .sort((left, right) => {
         const favoriteDifference = Number(favorites.has(right.id)) - Number(favorites.has(left.id));
         return favoriteDifference || left.label.localeCompare(right.label);
@@ -587,7 +550,6 @@ async function start(): Promise<void> {
       renderMetrics();
     }
     entitySelect.replaceChildren();
-    entityList.replaceChildren();
     for (const entity of filtered) {
       const option = element("option");
       option.value = entity.id;
@@ -597,44 +559,11 @@ async function start(): Promise<void> {
         : `${favorite}${entity.label}`;
       option.selected = entity.id === activeEntity.id;
       entitySelect.append(option);
-      const entityButton = element("button", "entity-row");
-      entityButton.type = "button";
-      entityButton.classList.toggle("active", entity.id === activeEntity.id);
-      const stateMark = element(
-        "span",
-        `entity-state ${entity.oper_status === true ? "up" : entity.oper_status === false ? "down" : "unknown"}`,
-      );
-      const copy = element("span", "entity-row-copy");
-      copy.append(element("strong", "entity-row-name", entity.label));
-      copy.append(
-        element(
-          "span",
-          "entity-row-description",
-          entity.description || entity.status.split("/").join(" / "),
-        ),
-      );
-      const speed = entity.status.split("/")[1] ?? "-";
-      const rowMeta = element(
-        "span",
-        "entity-row-meta",
-        entity.capabilities.includes("optical") ? `DOM · ${speed}` : speed,
-      );
-      entityButton.append(stateMark, copy, rowMeta);
-      entityButton.addEventListener("click", () => {
-        activateEntity(entity, true);
-        renderPresets();
-        renderEntities();
-        renderMetrics();
-        void refresh();
-      });
-      entityList.append(entityButton);
     }
-    entityCount.textContent = `${filtered.length}/${activeGroup.entities.length}`;
     entitySelect.disabled = filtered.length === 0;
     const isInterface = activeGroup.kind === "interface";
-    entityTools.hidden = !isInterface;
+    activeOnlyLabel.hidden = !isInterface;
     favoriteButton.hidden = !isInterface;
-    explorer.classList.toggle("single-entity", !isInterface);
     const moduleTitle =
       manifest.modules.find((item) => item.id === activeGroup.module_id)?.title ?? activeGroup.title;
     contextPath.textContent =
@@ -813,10 +742,24 @@ async function start(): Promise<void> {
     renderMetrics();
     void refresh();
   });
-  entitySearch.addEventListener("input", () => {
+  groupSelect.addEventListener("change", () => {
+    const group = manifest.groups.find((item) => item.id === groupSelect.value);
+    if (!group) return;
+    activeGroup = group;
+    viewPinned = false;
+    activeOnly = false;
+    activeOnlyInput.checked = false;
+    const firstEntity =
+      group.entities.find((entity) => favorites.has(entity.id)) ??
+      group.entities.find((entity) => entity.oper_status === true) ??
+      group.entities[0];
+    if (!firstEntity) return;
+    activateEntity(firstEntity, false);
+    renderGroups();
+    renderPresets();
     renderEntities();
-    if (searchTimer !== undefined) window.clearTimeout(searchTimer);
-    if (!entitySelect.disabled) searchTimer = window.setTimeout(() => void refresh(), 250);
+    renderMetrics();
+    void refresh();
   });
   activeOnlyInput.addEventListener("change", () => {
     activeOnly = activeOnlyInput.checked;
