@@ -120,6 +120,13 @@ pnpm run build:monitoring-dashboard
 The build copies `monitoring-dashboard.html`, JavaScript, CSS, and the source map to `ui/dist/`.
 The standard NOC production build also includes this package through `build:bundles-prod`.
 
+## Localization
+
+The renderer reads the preferred language from `/main/desktop/settings/` and loads the same
+gettext JSON catalog as the main NOC interface. User-visible TypeScript strings use `__()` and
+are included in the web translation extraction performed by `./noc translation extract web`.
+English remains the non-blocking fallback when the selected catalog cannot be loaded.
+
 ## Extension Points
 
 Add sensors, service-level agreements, links, or customer premises equipment by contributing a

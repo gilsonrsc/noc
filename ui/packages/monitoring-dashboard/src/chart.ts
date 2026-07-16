@@ -1,4 +1,5 @@
 import type {EChartsCoreOption} from "echarts/core";
+import {__} from "./i18n";
 import {metricForDirection, rankInterfaces, utilizationFor} from "./summary";
 import type {MetricDescriptor, SummaryEntity, TimeSeries} from "./types";
 
@@ -15,18 +16,31 @@ export function compactMetricName(name: string): string {
   const parts = name.split(" | ").filter(Boolean);
   if (parts[0] === "Interface" && parts[1] === "DOM") {
     const opticalLabels: Record<string, string> = {
-      "Bias Current": "Laser bias",
-      RxPower: "Optical Rx",
-      Temperature: "Module temperature",
-      TxPower: "Optical Tx",
-      Voltage: "Supply voltage",
+      "Bias Current": __("Laser bias"),
+      RxPower: __("Optical Rx"),
+      Temperature: __("Module temperature"),
+      TxPower: __("Optical Tx"),
+      Voltage: __("Supply voltage"),
     };
-    return opticalLabels[parts.slice(2).join(" ")] ?? `Optical ${parts.slice(2).join(" ")}`;
+    return opticalLabels[parts.slice(2).join(" ")] ?? `${__("Optical")} ${parts.slice(2).join(" ")}`;
   }
   if (parts[0] === "Interface" && parts[1] === "Load") {
-    return ["Traffic", ...parts.slice(2)].join(" ");
+    return [
+      __("Traffic"),
+      ...parts.slice(2).map((part) => (part === "In" ? __("In") : part === "Out" ? __("Out") : part)),
+    ].join(" ");
   }
-  if (parts[0] === "Interface") return parts.slice(1).join(" ");
+  if (parts[0] === "Interface") {
+    return parts
+      .slice(1)
+      .map((part) => {
+        if (part === "Errors") return __("Errors");
+        if (part === "In") return __("In");
+        if (part === "Out") return __("Out");
+        return part;
+      })
+      .join(" ");
+  }
   return parts.join(" ");
 }
 
@@ -103,7 +117,11 @@ export function buildChartOption(series: TimeSeries[], from: number, to: number)
       right: 12,
       top: 8,
       iconStyle: {borderColor: "#929eac"},
-      feature: {dataZoom: {}, restore: {}, saveAsImage: {name: "noc-performance"}},
+      feature: {
+        dataZoom: {title: {zoom: __("Area zoom"), back: __("Restore area zoom")}},
+        restore: {title: __("Restore")},
+        saveAsImage: {name: "noc-performance", title: __("Save as image")},
+      },
     },
     dataZoom: [
       {type: "inside", filterMode: "none"},
@@ -218,14 +236,14 @@ export function buildInterfaceRankingOption(
     },
     series: [
       {
-        name: "Inbound P95",
+        name: __("Inbound P95"),
         type: "bar",
         barMaxWidth: 9,
         data: ranked.map((entity) => utilizationFor(entity, inbound, "p95") ?? 0),
         itemStyle: {borderRadius: [0, 3, 3, 0]},
       },
       {
-        name: "Outbound P95",
+        name: __("Outbound P95"),
         type: "bar",
         barMaxWidth: 9,
         data: ranked.map((entity) => utilizationFor(entity, outbound, "p95") ?? 0),

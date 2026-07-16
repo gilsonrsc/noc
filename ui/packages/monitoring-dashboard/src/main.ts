@@ -18,6 +18,7 @@ import {
   seriesDisplayName,
 } from "./chart";
 import {metricForDirection, rankInterfaces, summaryMetrics, utilizationFor} from "./summary";
+import {__, initializeI18n} from "./i18n";
 import {
   capacityForSeries,
   defaultMetricView,
@@ -67,73 +68,75 @@ const REFRESH_OPTIONS = [
   {label: "5m", value: 300_000},
 ] as const;
 
-const VIEW_CONTENT: Record<MetricView, {eyebrow: string; title: string; description: string}> = {
-  all: {
-    eyebrow: "Selected signals",
-    title: "Combined history",
-    description: "Compare the selected measurements over the same period.",
-  },
-  traffic: {
-    eyebrow: "Interface throughput",
-    title: "Traffic",
-    description: "Inbound and outbound load, compared with the interface capacity.",
-  },
-  errors: {
-    eyebrow: "Packet integrity",
-    title: "Errors and discards",
-    description: "Interface errors, drops and discards recorded during the selected period.",
-  },
-  health: {
-    eyebrow: "Device resources",
-    title: "Health",
-    description: "Resource usage, reachability and operating measurements for this device.",
-  },
-  environment: {
-    eyebrow: "Environmental telemetry",
-    title: "Environment",
-    description: "Temperature, power and environmental measurements reported by the device.",
-  },
-  optical: {
-    eyebrow: "Transceiver diagnostics",
-    title: "Optical levels",
-    description: "Receive and transmit power with the supporting transceiver diagnostics.",
-  },
-  radio: {
-    eyebrow: "Radio telemetry",
-    title: "Radio",
-    description: "Signal, noise, power and radio link measurements.",
-  },
-  access: {
-    eyebrow: "Access telemetry",
-    title: "Access",
-    description: "Subscriber access and physical line measurements.",
-  },
-  sla: {
-    eyebrow: "Service assurance",
-    title: "Service level",
-    description: "Latency, jitter, loss and service-level measurements.",
-  },
-  subscribers: {
-    eyebrow: "Subscriber sessions",
-    title: "Subscribers",
-    description: "Session counts and subscriber service measurements.",
-  },
-  storage: {
-    eyebrow: "Storage resources",
-    title: "Storage",
-    description: "Filesystem, disk and storage utilization measurements.",
-  },
-  routing: {
-    eyebrow: "Control plane",
-    title: "Routing",
-    description: "Routing, neighbor and control-plane measurements.",
-  },
-  other: {
-    eyebrow: "Additional telemetry",
-    title: "Other signals",
-    description: "Measurements available for this source that do not belong to another view.",
-  },
-};
+function viewContent(): Record<MetricView, {eyebrow: string; title: string; description: string}> {
+  return {
+    all: {
+      eyebrow: __("Selected signals"),
+      title: __("Combined history"),
+      description: __("Compare the selected measurements over the same period."),
+    },
+    traffic: {
+      eyebrow: __("Interface throughput"),
+      title: __("Traffic"),
+      description: __("Inbound and outbound load, compared with the interface capacity."),
+    },
+    errors: {
+      eyebrow: __("Packet integrity"),
+      title: __("Errors and discards"),
+      description: __("Interface errors, drops and discards recorded during the selected period."),
+    },
+    health: {
+      eyebrow: __("Device resources"),
+      title: __("Health"),
+      description: __("Resource usage, reachability and operating measurements for this device."),
+    },
+    environment: {
+      eyebrow: __("Environmental telemetry"),
+      title: __("Environment"),
+      description: __("Temperature, power and environmental measurements reported by the device."),
+    },
+    optical: {
+      eyebrow: __("Transceiver diagnostics"),
+      title: __("Optical levels"),
+      description: __("Receive and transmit power with the supporting transceiver diagnostics."),
+    },
+    radio: {
+      eyebrow: __("Radio telemetry"),
+      title: __("Radio"),
+      description: __("Signal, noise, power and radio link measurements."),
+    },
+    access: {
+      eyebrow: __("Access telemetry"),
+      title: __("Access"),
+      description: __("Subscriber access and physical line measurements."),
+    },
+    sla: {
+      eyebrow: __("Service assurance"),
+      title: __("Service level"),
+      description: __("Latency, jitter, loss and service-level measurements."),
+    },
+    subscribers: {
+      eyebrow: __("Subscriber sessions"),
+      title: __("Subscribers"),
+      description: __("Session counts and subscriber service measurements."),
+    },
+    storage: {
+      eyebrow: __("Storage resources"),
+      title: __("Storage"),
+      description: __("Filesystem, disk and storage utilization measurements."),
+    },
+    routing: {
+      eyebrow: __("Control plane"),
+      title: __("Routing"),
+      description: __("Routing, neighbor and control-plane measurements."),
+    },
+    other: {
+      eyebrow: __("Additional telemetry"),
+      title: __("Other signals"),
+      description: __("Measurements available for this source that do not belong to another view."),
+    },
+  };
+}
 
 function requireElement<T extends Element>(node: T | null, message: string): T {
   if (!node) throw new Error(message);
@@ -142,7 +145,7 @@ function requireElement<T extends Element>(node: T | null, message: string): T {
 
 const app = requireElement(
   document.querySelector<HTMLElement>("#app"),
-  "Dashboard root element is missing",
+  __("Dashboard root element is missing"),
 );
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -160,10 +163,10 @@ function renderFatal(message: string, legacyUrl?: string): void {
   app.replaceChildren();
   const card = element("section", "fatal-card");
   card.append(element("div", "fatal-mark", "!"));
-  card.append(element("h1", "fatal-title", "Dashboard unavailable"));
+  card.append(element("h1", "fatal-title", __("Dashboard unavailable")));
   card.append(element("p", "fatal-message", message));
   if (legacyUrl) {
-    const link = element("a", "button secondary", "Open legacy Grafana");
+    const link = element("a", "button secondary", __("Open legacy Grafana"));
     link.href = legacyUrl;
     card.append(link);
   }
@@ -182,7 +185,7 @@ function objectMeta(manifest: DashboardManifest): string[] {
 }
 
 function formatCapacity(value: number): string {
-  if (!value) return "Not reported";
+  if (!value) return __("Not reported");
   if (value >= 1_000_000_000) return `${value / 1_000_000_000} Gbps`;
   if (value >= 1_000_000) return `${value / 1_000_000} Mbps`;
   if (value >= 1_000) return `${value / 1_000} kbps`;
@@ -202,7 +205,7 @@ function metricDomainClass(category: MetricCategory | undefined): string {
 async function start(): Promise<void> {
   const objectId = new URLSearchParams(window.location.search).get("id");
   if (!objectId) {
-    renderFatal("No managed object was selected.");
+    renderFatal(__("No managed object was selected."));
     return;
   }
 
@@ -210,18 +213,18 @@ async function start(): Promise<void> {
   try {
     manifest = await loadManifest(objectId);
   } catch (error) {
-    renderFatal(error instanceof Error ? error.message : "Unable to load dashboard metadata.");
+    renderFatal(error instanceof Error ? error.message : __("Unable to load dashboard metadata."));
     return;
   }
   if (manifest.groups.length === 0) {
-    renderFatal("This object has no stored metrics configured.", manifest.legacy_url);
+    renderFatal(__("This object has no stored metrics configured."), manifest.legacy_url);
     return;
   }
 
   app.replaceChildren();
   const header = element("header", "dashboard-header");
   const identity = element("div", "identity");
-  const eyebrow = element("div", "eyebrow", "Network performance");
+  const eyebrow = element("div", "eyebrow", __("Network performance"));
   const titleLine = element("div", "title-line");
   titleLine.append(element("span", "live-dot"), element("h1", "object-title", manifest.object.name));
   identity.append(eyebrow, titleLine, element("p", "object-meta", objectMeta(manifest).join(" · ")));
@@ -230,17 +233,17 @@ async function start(): Promise<void> {
   legacyLink.href = manifest.legacy_url;
   legacyLink.target = "_blank";
   legacyLink.rel = "noopener";
-  const lastUpdated = element("span", "last-updated", "Not updated yet");
+  const lastUpdated = element("span", "last-updated", __("Not updated yet"));
   headerActions.append(lastUpdated, legacyLink);
   header.append(identity, headerActions);
 
   const workspace = element("main", "workspace");
   const content = element("section", "content");
   const viewNav = element("nav", "view-nav");
-  viewNav.setAttribute("aria-label", "Dashboard sections");
-  const overviewButton = element("button", "view-nav-button", "Overview");
-  const interfacesButton = element("button", "view-nav-button", "Interfaces");
-  const analysisButton = element("button", "view-nav-button", "Analysis");
+  viewNav.setAttribute("aria-label", __("Dashboard sections"));
+  const overviewButton = element("button", "view-nav-button", __("Overview"));
+  const interfacesButton = element("button", "view-nav-button", __("Interfaces"));
+  const analysisButton = element("button", "view-nav-button", __("Analysis"));
   for (const button of [overviewButton, interfacesButton, analysisButton]) button.type = "button";
   viewNav.append(overviewButton, interfacesButton, analysisButton);
 
@@ -248,48 +251,48 @@ async function start(): Promise<void> {
   const sourceControls = element("div", "source-controls");
   const scopeSummary = element("div", "scope-summary");
   scopeSummary.append(
-    element("span", "field-label", "Scope"),
-    element("strong", "scope-summary-value", "All monitored interfaces"),
+    element("span", "field-label", __("Scope")),
+    element("strong", "scope-summary-value", __("All monitored interfaces")),
   );
   const groupField = element("label", "control-field group-field");
-  groupField.append(element("span", "field-label", "Metric profile"));
+  groupField.append(element("span", "field-label", __("Metric profile")));
   const groupSelect = element("select", "control-select");
-  groupSelect.setAttribute("aria-label", "Metric profile");
+  groupSelect.setAttribute("aria-label", __("Metric profile"));
   groupField.append(groupSelect);
   const entityField = element("label", "control-field entity-field");
-  entityField.append(element("span", "field-label", "Source"));
+  entityField.append(element("span", "field-label", __("Source")));
   const entitySelect = element("select", "control-select");
-  entitySelect.setAttribute("aria-label", "Selected source");
+  entitySelect.setAttribute("aria-label", __("Selected source"));
   entityField.append(entitySelect);
   const activeOnlyLabel = element("label", "filter-toggle");
   const activeOnlyInput = element("input");
   activeOnlyInput.type = "checkbox";
-  activeOnlyLabel.append(activeOnlyInput, element("span", "", "Operational only"));
+  activeOnlyLabel.append(activeOnlyInput, element("span", "", __("Operational only")));
   sourceControls.append(scopeSummary, groupField, entityField, activeOnlyLabel);
 
   const rangeField = element("div", "control-field range-field");
-  rangeField.append(element("span", "field-label", "Time range"));
+  rangeField.append(element("span", "field-label", __("Time range")));
   const ranges = element("div", "range-options");
   rangeField.append(ranges);
 
   const updateControls = element("div", "update-controls");
   const refreshControls = element("div", "refresh-controls");
   const autoRefreshSelect = element("select", "compact-select");
-  autoRefreshSelect.setAttribute("aria-label", "Automatic refresh interval");
+  autoRefreshSelect.setAttribute("aria-label", __("Automatic refresh interval"));
   for (const option of REFRESH_OPTIONS) {
-    const node = element("option", "", option.label);
+    const node = element("option", "", option.value === 0 ? __("Off") : option.label);
     node.value = String(option.value);
     autoRefreshSelect.append(node);
   }
-  const pauseButton = element("button", "button secondary compact", "Pause");
+  const pauseButton = element("button", "button secondary compact", __("Pause"));
   pauseButton.type = "button";
   pauseButton.setAttribute("aria-pressed", "false");
   refreshControls.append(
-    element("span", "refresh-label", "Auto"),
+    element("span", "refresh-label", __("Auto")),
     autoRefreshSelect,
     pauseButton,
   );
-  const refreshButton = element("button", "button primary", "Refresh");
+  const refreshButton = element("button", "button primary", __("Refresh"));
   refreshButton.type = "button";
   updateControls.append(refreshControls, refreshButton);
   controlBar.append(sourceControls, rangeField, updateControls);
@@ -298,15 +301,15 @@ async function start(): Promise<void> {
   const overviewHeading = element("header", "view-heading");
   const overviewHeadingCopy = element("div");
   overviewHeadingCopy.append(
-    element("div", "eyebrow", "Operational posture"),
-    element("h2", "view-title", "Network overview"),
+    element("div", "eyebrow", __("Operational posture")),
+    element("h2", "view-title", __("Network overview")),
     element(
       "p",
       "view-subtitle",
-      "Interface state, capacity pressure and collection coverage for this equipment.",
+      __("Interface state, capacity pressure and collection coverage for this equipment."),
     ),
   );
-  const overviewFreshness = element("div", "freshness-indicator", "Waiting for data");
+  const overviewFreshness = element("div", "freshness-indicator", __("Waiting for data"));
   overviewHeading.append(overviewHeadingCopy, overviewFreshness);
   const kpiGrid = element("div", "kpi-grid");
   const overviewGrid = element("div", "overview-grid");
@@ -314,8 +317,8 @@ async function start(): Promise<void> {
   const rankingHeading = element("header", "panel-heading");
   const rankingHeadingCopy = element("div");
   rankingHeadingCopy.append(
-    element("h3", "panel-title", "Capacity pressure"),
-    element("p", "panel-subtitle", "Top interfaces by P95 utilization in the selected period."),
+    element("h3", "panel-title", __("Capacity pressure")),
+    element("p", "panel-subtitle", __("Top interfaces by P95 utilization in the selected period.")),
   );
   rankingHeading.append(rankingHeadingCopy, element("span", "panel-tag", "P95"));
   const rankingChartNode = element("div", "ranking-chart");
@@ -324,11 +327,11 @@ async function start(): Promise<void> {
   const attentionHeading = element("header", "panel-heading");
   const attentionHeadingCopy = element("div");
   attentionHeadingCopy.append(
-    element("h3", "panel-title", "Needs attention"),
+    element("h3", "panel-title", __("Needs attention")),
     element(
       "p",
       "panel-subtitle",
-      "Down links, configured limit violations and missing measurements.",
+      __("Down links, configured limit violations and missing measurements."),
     ),
   );
   const attentionCount = element("span", "attention-count", "0");
@@ -342,27 +345,27 @@ async function start(): Promise<void> {
   const interfacesHeading = element("header", "view-heading interfaces-heading");
   const interfacesHeadingCopy = element("div");
   interfacesHeadingCopy.append(
-    element("div", "eyebrow", "Interface inventory"),
-    element("h2", "view-title", "Interfaces"),
+    element("div", "eyebrow", __("Interface inventory")),
+    element("h2", "view-title", __("Interfaces")),
     element(
       "p",
       "view-subtitle",
-      "Compare state, capacity and current traffic before opening a detailed analysis.",
+      __("Compare state, capacity and current traffic before opening a detailed analysis."),
     ),
   );
   const interfaceFilters = element("div", "interface-filters");
   const interfaceSearch = element("input", "interface-search");
   interfaceSearch.type = "search";
-  interfaceSearch.placeholder = "Search interface or description";
-  interfaceSearch.setAttribute("aria-label", "Search interfaces");
+  interfaceSearch.placeholder = __("Search interface or description");
+  interfaceSearch.setAttribute("aria-label", __("Search interfaces"));
   const interfaceStatusFilter = element("select", "table-filter-select");
-  interfaceStatusFilter.setAttribute("aria-label", "Filter interface status");
+  interfaceStatusFilter.setAttribute("aria-label", __("Filter interface status"));
   for (const [value, label] of [
-    ["all", "All states"],
-    ["up", "Operational"],
-    ["down", "Down"],
-    ["disabled", "Disabled"],
-    ["unknown", "Unknown"],
+    ["all", __("All states")],
+    ["up", __("Operational")],
+    ["down", __("Down")],
+    ["disabled", __("Disabled")],
+    ["unknown", __("Unknown")],
   ] as const) {
     const option = element("option", "", label);
     option.value = value;
@@ -372,12 +375,25 @@ async function start(): Promise<void> {
   interfacesHeading.append(interfacesHeadingCopy, interfaceFilters);
   const interfaceTableShell = element("div", "interface-table-shell");
   const interfaceTable = element("table", "interface-table");
-  interfaceTable.innerHTML = `
-    <thead><tr>
-      <th>Status</th><th>Interface</th><th>Capacity</th><th>Traffic in</th>
-      <th>Traffic out</th><th>P95 load</th><th>Signals</th><th><span class="sr-only">Action</span></th>
-    </tr></thead>
-  `;
+  const interfaceTableHead = element("thead");
+  const interfaceTableHeadRow = element("tr");
+  for (const label of [
+    __("Status"),
+    __("Interface"),
+    __("Capacity"),
+    __("Traffic in"),
+    __("Traffic out"),
+    __("P95 load"),
+    __("Signals"),
+    __("Action"),
+  ]) {
+    const cell = element("th");
+    if (label === __("Action")) cell.append(element("span", "sr-only", label));
+    else cell.textContent = label;
+    interfaceTableHeadRow.append(cell);
+  }
+  interfaceTableHead.append(interfaceTableHeadRow);
+  interfaceTable.append(interfaceTableHead);
   const interfaceTableBody = element("tbody");
   interfaceTable.append(interfaceTableBody);
   interfaceTableShell.append(interfaceTable);
@@ -388,13 +404,13 @@ async function start(): Promise<void> {
   const toolbar = element("div", "toolbar");
   const signalContext = element("section", "signal-context");
   const contextIdentity = element("div", "context-identity");
-  const contextPath = element("div", "context-path", "Selected source");
+  const contextPath = element("div", "context-path", __("Selected source"));
   const contextTitleRow = element("div", "context-title-row");
   const contextTitle = element("h2", "context-title");
   const favoriteButton = element("button", "favorite-button", "☆");
   favoriteButton.type = "button";
-  favoriteButton.title = "Add interface to favorites";
-  favoriteButton.setAttribute("aria-label", "Add interface to favorites");
+  favoriteButton.title = __("Add interface to favorites");
+  favoriteButton.setAttribute("aria-label", __("Add interface to favorites"));
   contextTitleRow.append(contextTitle, favoriteButton);
   const contextDescription = element("p", "context-description");
   contextIdentity.append(contextPath, contextTitleRow, contextDescription);
@@ -417,10 +433,10 @@ async function start(): Promise<void> {
   const chartCard = element("section", "chart-card");
   const chartHeader = element("div", "chart-header");
   const chartHeading = element("div", "chart-heading");
-  const chartTitle = element("h3", "chart-title", "Performance history");
-  const chartSubtitle = element("p", "chart-subtitle", "Recorded measurements");
+  const chartTitle = element("h3", "chart-title", __("Performance history"));
+  const chartSubtitle = element("p", "chart-subtitle", __("Recorded measurements"));
   chartHeading.append(chartTitle, chartSubtitle);
-  const status = element("div", "query-status", "Ready");
+  const status = element("div", "query-status", __("Ready"));
   chartHeader.append(chartHeading, metricOptions, status);
   const alertBanner = element("div", "alert-banner");
   alertBanner.hidden = true;
@@ -435,7 +451,7 @@ async function start(): Promise<void> {
   const chartStateTitle = element("strong", "chart-state-title");
   const chartStateDetail = element("p", "chart-state-detail");
   chartStateCopy.append(chartStateTitle, chartStateDetail);
-  const chartStateAction = element("button", "button secondary chart-state-action", "Try again");
+  const chartStateAction = element("button", "button secondary chart-state-action", __("Try again"));
   chartStateAction.type = "button";
   chartState.append(chartStateMark, chartStateCopy, chartStateAction);
   chartFrame.append(chartNode, chartState);
@@ -616,7 +632,7 @@ async function start(): Promise<void> {
       if (utilization !== null) {
         heading.append(element("span", `utilization-badge ${cardState}`, `${utilization.toFixed(1)}%`));
       } else if (stale) {
-        heading.append(element("span", "utilization-badge stale", "Delayed"));
+        heading.append(element("span", "utilization-badge stale", __("Delayed")));
       }
       const currentValue = element(
         "strong",
@@ -625,8 +641,8 @@ async function start(): Promise<void> {
       );
       const detail = element("div", "summary-detail");
       detail.append(
-        element("span", "", `Average ${formatMetricValueWithUnit(average, unit)}`),
-        element("span", "", `Peak ${formatMetricValueWithUnit(peak, unit)}`),
+        element("span", "", `${__("Average")} ${formatMetricValueWithUnit(average, unit)}`),
+        element("span", "", `${__("Peak")} ${formatMetricValueWithUnit(peak, unit)}`),
       );
       card.append(heading, currentValue);
       if (utilization !== null) {
@@ -640,7 +656,7 @@ async function start(): Promise<void> {
       if (thresholds.length) {
         const thresholdDetail = element("div", "summary-threshold");
         thresholdDetail.append(
-          element("span", "summary-threshold-label", "Configured limits"),
+          element("span", "summary-threshold-label", __("Configured limits")),
           element("span", "summary-threshold-value", formatThresholds(thresholds, unit)),
         );
         thresholdDetail.title = thresholds.map((threshold) => threshold.rule_name).join(" · ");
@@ -650,15 +666,15 @@ async function start(): Promise<void> {
     }
     seriesSummary.hidden = seriesSummary.childElementCount === 0;
     if (activeEntity.oper_status === false) {
-      setAlert("critical", "Interface is down. Historical data remains available.");
+      setAlert("critical", __("Interface is down. Historical data remains available."));
     } else if (seriesSummary.childElementCount === 0) {
-      setAlert("no-data", "No measurements are available for this view and time range.");
+      setAlert("no-data", __("No measurements are available for this view and time range."));
     } else if (states.has("critical")) {
-      setAlert("critical", "A configured critical metric limit has been crossed.");
+      setAlert("critical", __("A configured critical metric limit has been crossed."));
     } else if (states.has("warning")) {
-      setAlert("warning", "A configured metric limit has been crossed.");
+      setAlert("warning", __("A configured metric limit has been crossed."));
     } else if (states.has("stale")) {
-      setAlert("stale", "Data collection is delayed for one or more metrics.");
+      setAlert("stale", __("Data collection is delayed for one or more metrics."));
     } else {
       setAlert("normal", "");
     }
@@ -721,34 +737,34 @@ async function start(): Promise<void> {
       : 0;
     const reporting = summary.entities.filter((entity) => Object.keys(entity.values).length).length;
     kpiGrid.replaceChildren(
-      renderKpi("Interfaces", inventory.total.toLocaleString(), "Inventory sources"),
+      renderKpi(__("Interfaces"), inventory.total.toLocaleString(), __("Inventory sources")),
       renderKpi(
-        "Operational",
+        __("Operational"),
         inventory.operational.toLocaleString(),
-        `${formatPercentage(operationalPercentage)} of inventory`,
+        `${formatPercentage(operationalPercentage)} ${__("of inventory")}`,
         "positive",
       ),
       renderKpi(
-        "Down",
+        __("Down"),
         inventory.down.toLocaleString(),
-        inventory.down ? "Requires attention" : "No down interfaces",
+        inventory.down ? __("Requires attention") : __("No down interfaces"),
         inventory.down ? "negative" : "positive",
       ),
       renderKpi(
-        "Disabled",
+        __("Disabled"),
         (inventory.disabled ?? 0).toLocaleString(),
-        "Administratively disabled",
+        __("Administratively disabled"),
       ),
       renderKpi(
-        "Reporting",
+        __("Reporting"),
         reporting.toLocaleString(),
-        `${formatPercentage(inventory.total ? (reporting / inventory.total) * 100 : 0)} with data`,
+        `${formatPercentage(inventory.total ? (reporting / inventory.total) * 100 : 0)} ${__("with data")}`,
         "informative",
       ),
       renderKpi(
-        "Optical telemetry",
+        __("Optical telemetry"),
         inventory.optical.toLocaleString(),
-        "DOM-capable interfaces",
+        __("DOM-capable interfaces"),
         "informative",
       ),
     );
@@ -760,7 +776,7 @@ async function start(): Promise<void> {
       ),
     );
     rankingPanel.classList.toggle("is-empty", !hasRankedValues);
-    rankingChartNode.dataset.empty = "No capacity-based traffic samples in this period.";
+    rankingChartNode.dataset.empty = __("No capacity-based traffic samples in this period.");
     if (hasRankedValues) {
       rankingChart.setOption(
         buildInterfaceRankingOption(summary.entities, availableSummaryMetrics),
@@ -783,7 +799,7 @@ async function start(): Promise<void> {
           entity,
           state: "critical",
           title: entity.label,
-          detail: "Interface is down",
+          detail: __("Interface is down"),
         });
         continue;
       }
@@ -800,7 +816,7 @@ async function start(): Promise<void> {
           entity,
           state: severity.includes("critical") || severity.includes("major") ? "critical" : "warning",
           title: entity.label,
-          detail: `${compactMetricName(metric.name)} crossed ${threshold.op} ${formatMetricValueWithUnit(
+          detail: `${compactMetricName(metric.name)} ${__("crossed")} ${threshold.op} ${formatMetricValueWithUnit(
             threshold.value,
             metric.unit.label || metric.unit.code,
           )}`,
@@ -813,7 +829,7 @@ async function start(): Promise<void> {
           entity,
           state: "missing",
           title: entity.label,
-          detail: "No samples in the selected period",
+          detail: __("No samples in the selected period"),
         });
       }
     }
@@ -827,8 +843,8 @@ async function start(): Promise<void> {
       const empty = element("div", "attention-empty");
       empty.append(
         element("span", "attention-empty-mark", "✓"),
-        element("strong", "", "No active findings"),
-        element("span", "", "No down links or configured metric limits were detected."),
+        element("strong", "", __("No active findings")),
+        element("span", "", __("No down links or configured metric limits were detected.")),
       );
       attentionList.append(empty);
     } else {
@@ -844,8 +860,8 @@ async function start(): Promise<void> {
     }
 
     overviewFreshness.textContent = summary.latest_ts
-      ? `Latest sample ${formatTimestamp(summary.latest_ts)}`
-      : "No samples in this period";
+      ? `${__("Latest sample")} ${formatTimestamp(summary.latest_ts)}`
+      : __("No samples in this period");
     overviewFreshness.className = `freshness-indicator ${summary.latest_ts ? "current" : "empty"}`;
     overviewView.classList.remove("loading", "error");
   }
@@ -889,7 +905,7 @@ async function start(): Promise<void> {
     interfaceTableBody.replaceChildren();
     if (!filtered.length) {
       const row = element("tr", "table-state-row");
-      const cell = element("td", "table-state-cell", "No interfaces match the current filters.");
+      const cell = element("td", "table-state-cell", __("No interfaces match the current filters."));
       cell.colSpan = 8;
       row.append(cell);
       interfaceTableBody.append(row);
@@ -900,12 +916,12 @@ async function start(): Promise<void> {
       const statusCell = element("td");
       const statusName =
         entity.admin_status === false
-          ? "Disabled"
+          ? __("Disabled")
           : entity.oper_status === true
-            ? "Operational"
+            ? __("Operational")
             : entity.oper_status === false
-              ? "Down"
-              : "Unknown";
+              ? __("Down")
+              : __("Unknown");
       const statusClass =
         entity.admin_status === false
           ? "disabled"
@@ -924,7 +940,7 @@ async function start(): Promise<void> {
       const nameCell = element("td", "interface-name-cell");
       nameCell.append(
         element("strong", "interface-name", entity.label),
-        element("span", "interface-description", entity.description || "No description"),
+        element("span", "interface-description", entity.description || __("No description")),
       );
       const capacity = Math.max(entity.capacity.in_bps, entity.capacity.out_bps);
       const utilization = Math.max(
@@ -950,7 +966,7 @@ async function start(): Promise<void> {
         signalsCell.append(element("span", `signal-tag ${metricDomainClass(capability)}`, metricViewLabel(capability)));
       }
       const actionCell = element("td", "table-action-cell");
-      const action = element("button", "table-action", "Analyze");
+      const action = element("button", "table-action", __("Analyze"));
       action.type = "button";
       action.addEventListener("click", () => openInterfaceAnalysis(entity.id));
       actionCell.append(action);
@@ -969,7 +985,7 @@ async function start(): Promise<void> {
   }
 
   function renderSummaryLoading(): void {
-    overviewFreshness.textContent = dashboardSummary ? "Updating…" : "Loading inventory…";
+    overviewFreshness.textContent = dashboardSummary ? __("Updating…") : __("Loading inventory…");
     overviewFreshness.className = "freshness-indicator loading";
     if (dashboardSummary) return;
     overviewView.classList.add("loading");
@@ -978,20 +994,25 @@ async function start(): Promise<void> {
     );
     rankingPanel.classList.add("is-loading");
     const row = element("tr", "table-state-row");
-    const cell = element("td", "table-state-cell", "Loading interface summary…");
+    const cell = element("td", "table-state-cell", __("Loading interface summary…"));
     cell.colSpan = 8;
     row.append(cell);
     interfaceTableBody.replaceChildren(row);
   }
 
   function renderSummaryError(message: string): void {
-    overviewFreshness.textContent = "Update failed";
+    overviewFreshness.textContent = __("Update failed");
     overviewFreshness.className = "freshness-indicator error";
     if (dashboardSummary) return;
     overviewView.classList.remove("loading");
     overviewView.classList.add("error");
     kpiGrid.replaceChildren(
-      renderKpi("Summary unavailable", "—", "The detailed analysis remains available.", "negative"),
+      renderKpi(
+        __("Summary unavailable"),
+        "—",
+        __("The detailed analysis remains available."),
+        "negative",
+      ),
     );
     attentionList.replaceChildren(element("div", "attention-empty error", message));
     const row = element("tr", "table-state-row error");
@@ -1009,7 +1030,8 @@ async function start(): Promise<void> {
         module && module.group_ids.length > 1 ? group.title : (module?.title ?? group.title);
       const option = element("option");
       option.value = group.id;
-      option.textContent = `${groupHeading} · ${group.entities.length} ${group.entities.length === 1 ? "source" : "sources"}`;
+      const sourceLabel = group.entities.length === 1 ? __("source") : __("sources");
+      option.textContent = `${groupHeading} · ${group.entities.length} ${sourceLabel}`;
       option.selected = group.id === activeGroup.id;
       groupSelect.append(option);
     }
@@ -1037,11 +1059,11 @@ async function start(): Promise<void> {
       });
       presetOptions.append(button);
     }
-    const content = VIEW_CONTENT[activeView];
+    const content = viewContent()[activeView];
     viewEyebrow.textContent = content.eyebrow;
     viewDescription.textContent = content.description;
     chartTitle.textContent = content.title;
-    chartSubtitle.textContent = `${activeEntity.label} · ${metricViewLabel(activeView)} history`;
+    chartSubtitle.textContent = `${activeEntity.label} · ${metricViewLabel(activeView)} ${__("history")}`;
   }
 
   function renderEntities(): void {
@@ -1077,17 +1099,31 @@ async function start(): Promise<void> {
       manifest.modules.find((item) => item.id === activeGroup.module_id)?.title ?? activeGroup.title;
     contextPath.textContent =
       moduleTitle === activeGroup.title ? moduleTitle : `${moduleTitle} / ${activeGroup.title}`;
-    contextTitle.textContent = filtered.length ? activeEntity.label : "No matching entities";
+    contextTitle.textContent = filtered.length ? activeEntity.label : __("No matching entities");
     contextDescription.textContent = filtered.length
-      ? activeEntity.description || "No inventory description"
-      : "Adjust the entity filters to continue.";
+      ? activeEntity.description || __("No inventory description")
+      : __("Adjust the entity filters to continue.");
     contextFacts.replaceChildren();
     if (filtered.length) {
       const facts = [
-        ["Capacity", formatCapacity(Math.max(activeEntity.capacity.in_bps, activeEntity.capacity.out_bps))],
-        ["Admin", activeEntity.admin_status === null ? "N/A" : activeEntity.admin_status ? "Enabled" : "Disabled"],
-        ["Duplex", activeEntity.full_duplex === null ? "N/A" : activeEntity.full_duplex ? "Full" : "Half"],
-        ["Signals", activeEntity.capabilities.map((item) => metricViewLabel(item)).join(" / ")],
+        [__("Capacity"), formatCapacity(Math.max(activeEntity.capacity.in_bps, activeEntity.capacity.out_bps))],
+        [
+          __("Admin"),
+          activeEntity.admin_status === null
+            ? __("N/A")
+            : activeEntity.admin_status
+              ? __("Enabled")
+              : __("Disabled"),
+        ],
+        [
+          __("Duplex"),
+          activeEntity.full_duplex === null
+            ? __("N/A")
+            : activeEntity.full_duplex
+              ? __("Full")
+              : __("Half"),
+        ],
+        [__("Signals"), activeEntity.capabilities.map((item) => metricViewLabel(item)).join(" / ")],
       ];
       for (const [label, value] of facts) {
         const fact = element("div", "context-fact");
@@ -1097,30 +1133,30 @@ async function start(): Promise<void> {
     }
     entityStatus.textContent = filtered.length
       ? activeEntity.oper_status === true
-        ? "OPERATIONAL"
+        ? __("OPERATIONAL")
         : activeEntity.oper_status === false
-          ? "DOWN"
-          : "UNKNOWN"
-      : "NO MATCH";
+          ? __("DOWN")
+          : __("UNKNOWN")
+      : __("NO MATCH");
     entityStatus.className = `entity-status ${
       !filtered.length ? "unknown" : activeEntity.oper_status === true ? "up" : "down"
     }`;
     favoriteButton.textContent = favorites.has(activeEntity.id) ? "★" : "☆";
     favoriteButton.classList.toggle("active", favorites.has(activeEntity.id));
     favoriteButton.title = favorites.has(activeEntity.id)
-      ? "Remove interface from favorites"
-      : "Add interface to favorites";
+      ? __("Remove interface from favorites")
+      : __("Add interface to favorites");
     favoriteButton.setAttribute("aria-label", favoriteButton.title);
     if (!filtered.length) {
       chart.clear();
       renderSeriesSummary([]);
-      setAlert("no-data", "No interfaces match the current search and status filters.");
+      setAlert("no-data", __("No interfaces match the current search and status filters."));
       setChartState(
         "empty",
-        "No matching sources",
-        "Change the search or include interfaces that are not operational.",
+        __("No matching sources"),
+        __("Change the search or include interfaces that are not operational."),
       );
-      status.textContent = "No matching interfaces";
+      status.textContent = __("No matching interfaces");
     }
   }
 
@@ -1172,20 +1208,24 @@ async function start(): Promise<void> {
       renderSeriesSummary([]);
       setChartState(
         "empty",
-        "No signals selected",
-        "Select one or more measurements above to draw the history.",
+        __("No signals selected"),
+        __("Select one or more measurements above to draw the history."),
       );
-      status.textContent = "Waiting for a metric";
+      status.textContent = __("Waiting for a metric");
       scheduleRefresh();
       return;
     }
     const currentRequest = ++requestNumber;
     refreshButton.setAttribute("disabled", "");
-    status.textContent = "Loading…";
+    status.textContent = __("Loading…");
     status.className = "query-status loading";
     chart.clear();
     seriesSummary.hidden = true;
-    setChartState("loading", "Loading measurements", "Reading the selected time range.");
+    setChartState(
+      "loading",
+      __("Loading measurements"),
+      __("Reading the selected time range."),
+    );
     const to = Date.now();
     const from = to - rangeMs;
     try {
@@ -1206,8 +1246,8 @@ async function start(): Promise<void> {
       } else {
         setChartState(
           "empty",
-          "No measurements in this period",
-          "Collection is configured, but no samples were stored for the selected time range.",
+          __("No measurements in this period"),
+          __("Collection is configured, but no samples were stored for the selected time range."),
         );
       }
       const points = response.series.reduce((total, item) => total + item.points.length, 0);
@@ -1215,24 +1255,24 @@ async function start(): Promise<void> {
       const firstPoint = timestamps.length ? Math.min(...timestamps) : response.from;
       const coverage =
         firstPoint > response.from + response.interval * 2_000
-          ? ` · data since ${new Intl.DateTimeFormat(undefined, {
+          ? ` · ${__("data since")} ${new Intl.DateTimeFormat(undefined, {
               hour: "2-digit",
               minute: "2-digit",
             }).format(firstPoint)}`
           : "";
-      status.textContent = `${response.series.length} series · ${points.toLocaleString()} points${coverage}`;
+      status.textContent = `${response.series.length} ${__("series")} · ${points.toLocaleString()} ${__("points")}${coverage}`;
       status.className = "query-status success";
-      lastUpdated.textContent = `Updated ${new Intl.DateTimeFormat(undefined, {
+      lastUpdated.textContent = `${__("Updated")} ${new Intl.DateTimeFormat(undefined, {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
       }).format(Date.now())}`;
     } catch (error) {
       if (currentRequest !== requestNumber) return;
-      const message = error instanceof Error ? error.message : "Query failed";
+      const message = error instanceof Error ? error.message : __("Query failed");
       chart.clear();
-      setChartState("error", "Measurements unavailable", message, true);
-      status.textContent = "Query failed";
+      setChartState("error", __("Measurements unavailable"), message, true);
+      status.textContent = __("Query failed");
       status.className = "query-status error";
     } finally {
       if (currentRequest === requestNumber) {
@@ -1267,10 +1307,12 @@ async function start(): Promise<void> {
       renderOverview(response);
       renderInterfaceTable(response);
       rankingPanel.classList.remove("is-loading");
-      lastUpdated.textContent = `Updated ${formatTimestamp(Date.now())}`;
+      lastUpdated.textContent = `${__("Updated")} ${formatTimestamp(Date.now())}`;
     } catch (error) {
       if (currentRequest !== summaryRequestNumber) return;
-      renderSummaryError(error instanceof Error ? error.message : "Unable to load interface summary.");
+      renderSummaryError(
+        error instanceof Error ? error.message : __("Unable to load interface summary."),
+      );
     } finally {
       if (currentRequest === summaryRequestNumber) {
         refreshButton.removeAttribute("disabled");
@@ -1354,7 +1396,7 @@ async function start(): Promise<void> {
   });
   pauseButton.addEventListener("click", () => {
     refreshPaused = !refreshPaused;
-    pauseButton.textContent = refreshPaused ? "Resume" : "Pause";
+    pauseButton.textContent = refreshPaused ? __("Resume") : __("Pause");
     pauseButton.classList.toggle("active", refreshPaused);
     pauseButton.setAttribute("aria-pressed", String(refreshPaused));
     scheduleRefresh();
@@ -1378,4 +1420,12 @@ async function start(): Promise<void> {
   await refresh();
 }
 
-void start();
+async function initialize(): Promise<void> {
+  await initializeI18n();
+  document.title = __("NOC Performance");
+  const bootMessage = document.querySelector<HTMLElement>(".boot-state span:last-child");
+  if (bootMessage) bootMessage.textContent = __("Loading dashboard…");
+  await start();
+}
+
+void initialize();

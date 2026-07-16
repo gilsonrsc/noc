@@ -6,6 +6,7 @@ import type {
   MetricQuery,
   QueryResponse,
 } from "./types";
+import {__} from "./i18n";
 
 const INTERVALS = [10, 30, 60, 300, 900, 3600, 21600, 86400] as const;
 
@@ -39,9 +40,9 @@ export async function readJson<T>(response: Response): Promise<T> {
   const body = await response.text();
   if (!body.trim()) {
     if (response.status === 401 || response.status === 403 || response.redirected) {
-      throw new Error("Your NOC session is unavailable. Sign in again and retry.");
+      throw new Error(__("Your NOC session is unavailable. Sign in again and retry."));
     }
-    throw new Error(`The server returned an empty response (${response.status}).`);
+    throw new Error(`${__("The server returned an empty response")} (${response.status}).`);
   }
 
   let data: T & {error?: string};
@@ -50,12 +51,12 @@ export async function readJson<T>(response: Response): Promise<T> {
   } catch {
     const contentType = response.headers.get("content-type") ?? "";
     if (response.redirected || contentType.includes("text/html")) {
-      throw new Error("Your NOC session is unavailable. Sign in again and retry.");
+      throw new Error(__("Your NOC session is unavailable. Sign in again and retry."));
     }
-    throw new Error(`The server returned an invalid response (${response.status}).`);
+    throw new Error(`${__("The server returned an invalid response")} (${response.status}).`);
   }
   if (!response.ok) {
-    throw new Error(data.error ?? `Request failed with status ${response.status}`);
+    throw new Error(data.error ?? `${__("Request failed with status")} ${response.status}`);
   }
   return data;
 }

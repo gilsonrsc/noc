@@ -27,6 +27,9 @@ BABEL_CFG = b"""# Translation extraction config
 [javascript: **.js]
 extract_messages = _, __
 
+[javascript: **.ts]
+extract_messages = _, __
+
 [jinja2: **.j2]
 extensions=jinja2.ext.autoescape,jinja2.ext.with_
 """
@@ -48,7 +51,10 @@ class Command(BaseCommand):
         "login": {"messages": ["services/login/**.py"], "messages_js": ["ui/login/**.js"]},
         "web": {
             "messages": ["services/web/apps/**.py", "core/**.py"],
-            "messages_js": ["ui/web/**.js"],
+            "messages_js": [
+                "ui/web/**.js",
+                "ui/packages/monitoring-dashboard/src/**.ts",
+            ],
         },
     }
 

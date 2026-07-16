@@ -5,6 +5,7 @@ import type {
   MetricDescriptor,
   TimeSeries,
 } from "./types";
+import {__} from "./i18n";
 
 export type MetricView = "all" | MetricCategory;
 export type MonitorState = "normal" | "warning" | "critical" | "stale" | "no-data";
@@ -42,19 +43,19 @@ export function defaultMetricView(metrics: MetricDescriptor[]): MetricView {
 
 export function metricViewLabel(view: MetricView): string {
   const labels: Record<MetricView, string> = {
-    all: "All signals",
-    traffic: "Traffic",
-    errors: "Errors",
-    health: "Health",
-    environment: "Environment",
-    optical: "Optical",
-    radio: "Radio",
-    access: "Access",
+    all: __("All signals"),
+    traffic: __("Traffic"),
+    errors: __("Errors"),
+    health: __("Health"),
+    environment: __("Environment"),
+    optical: __("Optical"),
+    radio: __("Radio"),
+    access: __("Access"),
     sla: "SLA",
-    subscribers: "Subscribers",
-    storage: "Storage",
-    routing: "Routing",
-    other: "Other",
+    subscribers: __("Subscribers"),
+    storage: __("Storage"),
+    routing: __("Routing"),
+    other: __("Other"),
   };
   return labels[view];
 }
