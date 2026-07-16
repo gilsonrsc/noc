@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
-import {buildMetricQuery, intervalForRange, loadManifest} from "../src/api";
+import {buildMetricQuery, intervalForRange, loadManifest, readJson} from "../src/api";
 import {
   compactMetricName,
   compactSeriesTarget,
@@ -51,15 +51,34 @@ describe("loadManifest", () => {
     const manifest = {api_version: "1.0"};
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => manifest,
+      text: async () => JSON.stringify(manifest),
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(loadManifest("42")).resolves.toBe(manifest);
+    await expect(loadManifest("42")).resolves.toEqual(manifest);
     expect(fetchMock).toHaveBeenCalledWith(
       "/pm/ddash/manifest/?dashboard=mo&id=42",
       expect.objectContaining({cache: "no-store", credentials: "same-origin"}),
     );
+  });
+});
+
+describe("readJson", () => {
+  it("turns an empty authentication response into an actionable message", async () => {
+    const response = new Response("", {status: 401});
+
+    await expect(readJson(response)).rejects.toThrow(
+      "Your NOC session is unavailable. Sign in again and retry.",
+    );
+  });
+
+  it("preserves API error messages", async () => {
+    const response = new Response(JSON.stringify({error: "Object not found"}), {
+      status: 404,
+      headers: {"Content-Type": "application/json"},
+    });
+
+    await expect(readJson(response)).rejects.toThrow("Object not found");
   });
 });
 
