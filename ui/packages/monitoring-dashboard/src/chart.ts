@@ -2,12 +2,12 @@ import type {EChartsCoreOption} from "echarts/core";
 import type {TimeSeries} from "./types";
 
 export const SERIES_PALETTE = [
-  "#20b8d8",
-  "#30c48d",
-  "#e5a72a",
-  "#ef5d6f",
-  "#8f7bd8",
-  "#5c96d6",
+  "#5b8def",
+  "#45b58b",
+  "#9b8afb",
+  "#d7a84b",
+  "#e56b76",
+  "#7f9fc7",
 ];
 
 export function compactMetricName(name: string): string {
@@ -50,20 +50,20 @@ export function formatMetricValue(value: number, unit: string): string {
     if (absolute >= 1_000_000) return `${(value / 1_000_000).toFixed(1)} M`;
     if (absolute >= 1_000) return `${(value / 1_000).toFixed(1)} k`;
   }
-  return value.toLocaleString();
+  return value.toLocaleString(undefined, {maximumFractionDigits: 2});
 }
 
 export function formatMetricValueWithUnit(value: number, unit: string): string {
   const formatted = formatMetricValue(value, unit);
   if (unit === "bps" || unit === "bit/s") return `${formatted}bps`;
-  if (unit === "percent") return `${formatted} %`;
+  if (unit === "percent" || unit === "%") return `${formatted} %`;
   return unit && unit !== "1" ? `${formatted} ${unit}` : formatted;
 }
 
 export function buildChartOption(series: TimeSeries[], from: number, to: number): EChartsCoreOption {
   const units = [...new Set(series.map((item) => item.unit.label || item.unit.code))];
   return {
-    animationDuration: 220,
+    animationDuration: 180,
     color: SERIES_PALETTE,
     grid: {
       left: 12,
@@ -75,21 +75,21 @@ export function buildChartOption(series: TimeSeries[], from: number, to: number)
     legend: {
       top: 8,
       type: "scroll",
-      textStyle: {color: "#9aa8b7", fontSize: 10, fontFamily: "monospace"},
-      pageTextStyle: {color: "#657483"},
+      textStyle: {color: "#a7b0bc", fontSize: 11},
+      pageTextStyle: {color: "#667180"},
     },
     tooltip: {
       trigger: "axis",
-      backgroundColor: "rgba(8, 13, 20, 0.97)",
-      borderColor: "#344657",
+      backgroundColor: "rgba(15, 20, 28, 0.98)",
+      borderColor: "#374151",
       borderWidth: 1,
-      textStyle: {color: "#d7dee8", fontSize: 10, fontFamily: "monospace"},
-      axisPointer: {type: "cross", lineStyle: {color: "#536170", type: "dashed"}},
+      textStyle: {color: "#e8ecf2", fontSize: 11},
+      axisPointer: {type: "cross", lineStyle: {color: "#667180", type: "dashed"}},
     },
     toolbox: {
       right: 12,
       top: 8,
-      iconStyle: {borderColor: "#7f8d9d"},
+      iconStyle: {borderColor: "#87919f"},
       feature: {dataZoom: {}, restore: {}, saveAsImage: {name: "noc-performance"}},
     },
     dataZoom: [
@@ -98,11 +98,11 @@ export function buildChartOption(series: TimeSeries[], from: number, to: number)
         type: "slider",
         height: 18,
         bottom: 8,
-        borderColor: "#22303e",
-        backgroundColor: "#0a1119",
-        fillerColor: "rgba(32, 184, 216, 0.13)",
-        dataBackground: {lineStyle: {color: "#536170"}, areaStyle: {color: "#22303e"}},
-        textStyle: {color: "#7f8d9d", fontSize: 9, fontFamily: "monospace"},
+        borderColor: "#252d39",
+        backgroundColor: "#0f141c",
+        fillerColor: "rgba(91, 141, 239, 0.12)",
+        dataBackground: {lineStyle: {color: "#667180"}, areaStyle: {color: "#252d39"}},
+        textStyle: {color: "#87919f", fontSize: 9},
       },
     ],
     xAxis: {
@@ -110,27 +110,26 @@ export function buildChartOption(series: TimeSeries[], from: number, to: number)
       min: from,
       max: to,
       boundaryGap: false,
-      axisLine: {lineStyle: {color: "#344657"}},
-      axisTick: {lineStyle: {color: "#344657"}},
-      axisLabel: {color: "#7f8d9d", hideOverlap: true, fontSize: 9, fontFamily: "monospace"},
-      splitLine: {show: true, lineStyle: {color: "#18232e"}},
+      axisLine: {lineStyle: {color: "#374151"}},
+      axisTick: {lineStyle: {color: "#374151"}},
+      axisLabel: {color: "#87919f", hideOverlap: true, fontSize: 10},
+      splitLine: {show: true, lineStyle: {color: "#202733"}},
     },
     yAxis: units.map((unit, index) => ({
       type: "value",
       name: unit,
       position: index === 0 ? "left" : "right",
       offset: index > 1 ? (index - 1) * 52 : 0,
-      nameTextStyle: {color: "#7f8d9d", fontSize: 9, fontFamily: "monospace"},
+      nameTextStyle: {color: "#87919f", fontSize: 10},
       axisLabel: {
-        color: "#7f8d9d",
-        fontSize: 9,
-        fontFamily: "monospace",
+        color: "#87919f",
+        fontSize: 10,
         formatter: (value: number) => formatMetricValue(value, unit),
       },
-      axisLine: {show: index > 0, lineStyle: {color: "#344657"}},
+      axisLine: {show: index > 0, lineStyle: {color: "#374151"}},
       splitLine: {
         show: index === 0,
-        lineStyle: {color: "#18232e"},
+        lineStyle: {color: "#202733"},
       },
       scale: true,
     })),
@@ -143,8 +142,8 @@ export function buildChartOption(series: TimeSeries[], from: number, to: number)
       showSymbol: false,
       smooth: false,
       connectNulls: false,
-      lineStyle: {width: 1.6},
-      areaStyle: index === 0 ? {opacity: 0.035} : undefined,
+      lineStyle: {width: 2},
+      areaStyle: index === 0 ? {opacity: 0.025} : undefined,
       emphasis: {focus: "series"},
       tooltip: {
         valueFormatter: (value: number) =>
