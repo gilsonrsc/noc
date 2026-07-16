@@ -9,9 +9,11 @@
 # Third-party modules
 import orjson
 from django.db.models import Q
+from django.http import HttpResponse
 
 # NOC modules
 from noc.core.clickhouse.error import ClickhouseError
+from noc.core.feature import Feature
 from noc.core.translation import ugettext as _
 from noc.services.web.base.extapplication import ExtApplication, view
 from noc.sa.models.managedobject import ManagedObject
@@ -27,6 +29,12 @@ class DynamicDashboardApplication(ExtApplication):
     """
 
     title = _("Dynamic Dashboard")
+
+    def get_native_dashboard_unavailable_response(self) -> HttpResponse | None:
+        """Return an API response when the native dashboard feature is disabled."""
+        if Feature.NATIVE_DASHBOARD.is_active():
+            return None
+        return self.render_json({"error": "Native dashboard is disabled"}, status=self.NOT_FOUND)
 
     @staticmethod
     def get_managed_object(request, object_id):
@@ -44,6 +52,9 @@ class DynamicDashboardApplication(ExtApplication):
     @view(url=r"^manifest/$", method="GET", access="launch", api=True)
     def api_manifest(self, request):
         """Return renderer-neutral dashboard metadata."""
+        unavailable = self.get_native_dashboard_unavailable_response()
+        if unavailable is not None:
+            return unavailable
         if request.GET.get("dashboard", "mo") != "mo":
             return self.render_json({"error": "Unsupported dashboard"}, status=self.BAD_REQUEST)
         managed_object = self.get_managed_object(request, request.GET.get("id"))
@@ -54,6 +65,9 @@ class DynamicDashboardApplication(ExtApplication):
     @view(url=r"^query/$", method="POST", access="launch", api=True)
     def api_query(self, request):
         """Query bounded time series for the native dashboard."""
+        unavailable = self.get_native_dashboard_unavailable_response()
+        if unavailable is not None:
+            return unavailable
         try:
             data = orjson.loads(request.body)
         except ValueError:
@@ -76,6 +90,9 @@ class DynamicDashboardApplication(ExtApplication):
     @view(url=r"^summary/$", method="POST", access="launch", api=True)
     def api_summary(self, request):
         """Return bounded aggregate data for the native dashboard."""
+        unavailable = self.get_native_dashboard_unavailable_response()
+        if unavailable is not None:
+            return unavailable
         try:
             data = orjson.loads(request.body)
         except ValueError:

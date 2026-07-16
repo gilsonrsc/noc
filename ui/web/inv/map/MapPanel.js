@@ -8,7 +8,10 @@ console.debug("Defining NOC.inv.map.MapPanel");
 
 Ext.define("NOC.inv.map.MapPanel", {
   extend: "Ext.panel.Panel",
-  requires: ["NOC.inv.map.MapRenderer"],
+  requires: [
+    "NOC.core.ManagedObjectDashboard",
+    "NOC.inv.map.MapRenderer",
+  ],
   mixins: [
     "NOC.core.mixins.Polling",
   ],
@@ -526,9 +529,7 @@ Ext.define("NOC.inv.map.MapPanel", {
       objectType = me.nodeMenuObjectType;
 
     if("managedobject" === me.nodeMenuObjectType){
-      window.open(
-        "/ui/monitoring-dashboard.html?dashboard=mo&id=" + me.nodeMenuObject,
-      );
+      NOC.core.ManagedObjectDashboard.open(me.nodeMenuObject);
       return;
     }
     window.open(

@@ -92,6 +92,20 @@ current, average, peak, P95, and latest sample time per interface. It accepts at
 metrics and 5,000 entities. Threshold classification stays in NOC Metric Rules; the renderer
 does not invent vendor-specific optical limits.
 
+## Feature Gate
+
+The native dashboard is disabled by default. Enable the `nativedashboard` feature gate in a
+controlled environment:
+
+```yaml
+features:
+  gate:
+    - nativedashboard
+```
+
+When the feature is disabled, managed object dashboard actions continue to open Grafana and the
+native semantic endpoints return `404`.
+
 ## Development
 
 Install the workspace and run the package checks from `ui/`:

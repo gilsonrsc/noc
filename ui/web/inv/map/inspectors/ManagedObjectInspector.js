@@ -8,6 +8,7 @@ console.debug("Defining NOC.inv.map.inspectors.ManagedObjectInspector");
 
 Ext.define("NOC.inv.map.inspectors.ManagedObjectInspector", {
   extend: "NOC.inv.map.inspectors.Inspector",
+  requires: ["NOC.core.ManagedObjectDashboard"],
   title: __("Object Inspector"),
   inspectorName: "managedobject",
 
@@ -113,9 +114,7 @@ Ext.define("NOC.inv.map.inspectors.ManagedObjectInspector", {
 
   onDashboard: function(){
     if(this.currentObjectId){
-      window.open(
-        "/ui/monitoring-dashboard.html?dashboard=mo&id=" + this.currentObjectId,
-      );
+      NOC.core.ManagedObjectDashboard.open(this.currentObjectId);
     }
   },
 

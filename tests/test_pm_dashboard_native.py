@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 # NOC modules
+from noc.core.feature import Feature, FeatureStatus, _FEATURE_DEFAULT, _FEATURE_STATUS
 from noc.services.web.apps.pm.ddash.native import (
     MAX_QUERY_RANGE_MS,
     NativeDashboardError,
@@ -30,6 +31,31 @@ from noc.services.web.apps.pm.ddash.native import (
     query_metrics,
     query_summary,
 )
+from noc.services.web.apps.pm.ddash.views import DynamicDashboardApplication
+
+
+def test_native_dashboard_feature_gate_is_alpha_and_disabled_by_default():
+    assert Feature.NATIVE_DASHBOARD.value == "nativedashboard"
+    assert _FEATURE_STATUS[Feature.NATIVE_DASHBOARD] == FeatureStatus.ALPHA
+    assert _FEATURE_DEFAULT[Feature.NATIVE_DASHBOARD] is False
+
+
+def test_native_dashboard_endpoints_are_unavailable_when_feature_is_disabled(monkeypatch):
+    monkeypatch.setattr(Feature, "is_active", lambda _feature: False)
+    app = object.__new__(DynamicDashboardApplication)
+
+    response = app.get_native_dashboard_unavailable_response()
+
+    assert response is not None
+    assert response.status_code == 404
+    assert b"Native dashboard is disabled" in response.content
+
+
+def test_native_dashboard_endpoints_are_available_when_feature_is_enabled(monkeypatch):
+    monkeypatch.setattr(Feature, "is_active", lambda _feature: True)
+    app = object.__new__(DynamicDashboardApplication)
+
+    assert app.get_native_dashboard_unavailable_response() is None
 
 
 def test_format_interface_status():

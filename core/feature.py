@@ -40,12 +40,14 @@ class Feature(enum.Enum):
         CHANNEL: Channel management.
         JOBS: Orchestrator jobs.
         FGALARMS: Fine-grained alarms
+        NATIVE_DASHBOARD: Native managed object performance dashboard.
     """
 
     CHANNEL = "channel"
     JOBS = "jobs"
     FGALARMS = "fgalarms"
     SMARTREFRESH = "smartrefresh"
+    NATIVE_DASHBOARD = "nativedashboard"
 
     def is_active(self) -> bool:
         """Check if feature is active."""
@@ -57,12 +59,14 @@ _FEATURE_STATUS = {
     Feature.JOBS: FeatureStatus.ALPHA,
     Feature.FGALARMS: FeatureStatus.ALPHA,
     Feature.SMARTREFRESH: FeatureStatus.ALPHA,
+    Feature.NATIVE_DASHBOARD: FeatureStatus.ALPHA,
 }
 _FEATURE_DEFAULT = {
     Feature.CHANNEL: False,
     Feature.JOBS: False,
     Feature.FGALARMS: False,
     Feature.SMARTREFRESH: False,
+    Feature.NATIVE_DASHBOARD: False,
 }
 _current_features: set[Feature] | None = None
 

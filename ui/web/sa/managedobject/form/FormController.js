@@ -10,6 +10,7 @@ Ext.define("NOC.sa.managedobject.form.FormController", {
     "Ext.ux.grid.column.GlyphAction",
     "NOC.sa.managedobject.Model",
     "NOC.sa.managedobject.Proxy",
+    "NOC.core.ManagedObjectDashboard",
     "NOC.core.RemoteMappingForm",
   ],
   alias: "controller.managedobject.form",
@@ -187,9 +188,7 @@ Ext.define("NOC.sa.managedobject.form.FormController", {
   onDashboard: function(){
     var formPanel = this.getView().down("[itemId=managedobject-form-panel]");
     if(formPanel.recordId){
-      window.open(
-        "/ui/monitoring-dashboard.html?dashboard=mo&id=" + formPanel.recordId,
-      );
+      NOC.core.ManagedObjectDashboard.open(formPanel.recordId);
     }
   },
   onConsole: function(){

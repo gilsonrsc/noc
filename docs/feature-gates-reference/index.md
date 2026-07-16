@@ -53,3 +53,11 @@ Automatically suspends periodic backend queries while the associated UI element 
 
 - **Status**: ALFA
 - **Available since**: 25.1
+
+## nativedashboard
+
+Enables the optional native managed object performance dashboard. When disabled,
+managed object dashboard actions continue to open Grafana.
+
+- **Status**: ALFA
+- **Available since**: master
