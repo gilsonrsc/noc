@@ -682,7 +682,11 @@ def query_summary(mo: ManagedObject, data: dict[str, Any]) -> dict[str, Any]:
     metric_ids = data.get("metric_ids")
     if not isinstance(metric_ids, list) or not metric_ids:
         raise NativeDashboardError("At least one summary metric is required")
-    if len(metric_ids) > MAX_SUMMARY_METRICS or len(set(metric_ids)) != len(metric_ids):
+    if (
+        len(metric_ids) > MAX_SUMMARY_METRICS
+        or any(not isinstance(metric_id, str) or not metric_id for metric_id in metric_ids)
+        or len(set(metric_ids)) != len(metric_ids)
+    ):
         raise NativeDashboardError("Invalid summary metric selection")
     configured_metrics = {metric["id"]: metric for metric in group["metrics"]}
     unknown_metrics = set(metric_ids) - set(configured_metrics)
@@ -788,16 +792,22 @@ def query_metrics(mo: ManagedObject, data: dict[str, Any]) -> dict[str, Any]:
     for item in requests:
         if not isinstance(item, dict):
             raise NativeDashboardError("Invalid metric series")
-        group = groups.get(item.get("group_id"))
+        group_id = item.get("group_id")
+        entity_id = item.get("entity_id")
+        metric_id = item.get("metric_id")
+        if any(
+            not isinstance(value, str) or not value for value in (group_id, entity_id, metric_id)
+        ):
+            raise NativeDashboardError("Invalid metric series")
+        group = groups.get(group_id)
         if not group:
             raise NativeDashboardError("Unknown dashboard group")
         entity = next(
-            (entity for entity in group["entities"] if entity["id"] == item.get("entity_id")),
+            (entity for entity in group["entities"] if entity["id"] == entity_id),
             None,
         )
         if not entity:
             raise NativeDashboardError("Unknown dashboard entity")
-        metric_id = item.get("metric_id")
         metric_config = next(
             (metric for metric in group["metrics"] if metric["id"] == metric_id), None
         )

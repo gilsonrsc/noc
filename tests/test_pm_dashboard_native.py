@@ -549,6 +549,32 @@ def test_query_metrics_rejects_metric_not_enabled_for_entity(monkeypatch):
         )
 
 
+@pytest.mark.parametrize(
+    "series",
+    [
+        {"group_id": {}, "entity_id": "interface", "metric_id": "metric"},
+        {"group_id": "interfaces", "entity_id": [], "metric_id": "metric"},
+        {"group_id": "interfaces", "entity_id": "interface", "metric_id": None},
+    ],
+)
+def test_query_metrics_rejects_non_string_contract_ids(monkeypatch, series):
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.build_manifest",
+        lambda _mo: {"groups": []},
+    )
+
+    with pytest.raises(NativeDashboardError, match="Invalid metric series"):
+        query_metrics(
+            SimpleNamespace(),
+            {
+                "from": 1_700_000_000_000,
+                "to": 1_700_003_600_000,
+                "interval": 60,
+                "series": [series],
+            },
+        )
+
+
 def test_query_metrics_rejects_excessive_estimated_points():
     start = 1_700_000_000_000
     with pytest.raises(NativeDashboardError, match="aggregation interval"):
@@ -651,3 +677,31 @@ def test_query_summary_merges_inventory_and_metric_reductions(monkeypatch):
     }
     assert result["latest_ts"] == 1_700_003_600_000
     assert result["entities"][0]["values"]["traffic-in"]["p95"] == 8_500_000_000.0
+
+
+@pytest.mark.parametrize("metric_ids", [[{}], [[]], [None], [""], ["metric", "metric"]])
+def test_query_summary_rejects_invalid_metric_ids(monkeypatch, metric_ids):
+    monkeypatch.setattr(
+        "noc.services.web.apps.pm.ddash.native.build_manifest",
+        lambda _mo: {
+            "groups": [
+                {
+                    "id": "interfaces",
+                    "kind": "interface",
+                    "metrics": [],
+                    "entities": [],
+                }
+            ]
+        },
+    )
+
+    with pytest.raises(NativeDashboardError, match="Invalid summary metric selection"):
+        query_summary(
+            SimpleNamespace(),
+            {
+                "group_id": "interfaces",
+                "metric_ids": metric_ids,
+                "from": 1_700_000_000_000,
+                "to": 1_700_003_600_000,
+            },
+        )
