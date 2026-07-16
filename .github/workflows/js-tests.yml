@@ -7,6 +7,7 @@ on:
       - "ui/package.json"
       - "ui/pnpm-lock.yaml"
       - "ui/**.js"
+      - "ui/packages/monitoring-dashboard/**"
       - "scripts/build/build-ui"
   pull_request:
     branches: [master]
@@ -41,6 +42,14 @@ jobs:
 
       - name: Run eslint
         run: npx eslint web
+        working-directory: ui
+
+      - name: Type-check native monitoring dashboard
+        run: pnpm --filter monitoring-dashboard run typecheck
+        working-directory: ui
+
+      - name: Test native monitoring dashboard
+        run: pnpm --filter monitoring-dashboard run test
         working-directory: ui
 
   build-ui:

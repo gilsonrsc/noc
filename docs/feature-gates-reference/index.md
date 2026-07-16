@@ -60,4 +60,4 @@ Enables the optional native managed object performance dashboard. When disabled,
 managed object dashboard actions continue to open Grafana.
 
 - **Status**: ALFA
-- **Available since**: master
+- **Available since**: 25.1

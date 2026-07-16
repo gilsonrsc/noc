@@ -54,7 +54,7 @@ export function rankInterfaces(
   const inbound = metricForDirection(metrics, "traffic", "in");
   const outbound = metricForDirection(metrics, "traffic", "out");
   return [...entities]
-    .filter((entity) => entity.oper_status !== false)
+    .filter((entity) => entity.admin_status !== false && entity.oper_status !== false)
     .sort((left, right) => {
       const leftValue = Math.max(
         utilizationFor(left, inbound, "p95") ?? 0,

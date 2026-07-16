@@ -20,6 +20,7 @@ from noc.services.web.apps.pm.ddash.native import (
     _format_interface_status,
     _filter_orphan_series,
     _get_interface_groups,
+    _get_metric_configs,
     _get_metric_thresholds,
     _query_interface_metric_summary,
     _query_metric,
@@ -71,6 +72,16 @@ def test_filter_orphan_series():
     }
 
 
+def test_metric_configs_use_effective_discovery_interval_as_fallback():
+    metric = SimpleNamespace(id="metric-id")
+    profile = SimpleNamespace(
+        metrics_default_interval=0,
+        metrics=[SimpleNamespace(metric_type=metric, is_stored=True, interval=0)],
+    )
+
+    assert _get_metric_configs(profile, fallback_interval=300) == [(metric, 300)]
+
+
 def test_interface_groups_are_unified_with_entity_metric_capabilities(monkeypatch):
     traffic_profile = object()
     optical_profile = object()
@@ -88,6 +99,7 @@ def test_interface_groups_are_unified_with_entity_metric_capabilities(monkeypatc
             out_speed=1_000_000,
             bandwidth=0,
             profile=traffic_profile,
+            effective_labels=["noc::interface::backbone"],
         ),
         SimpleNamespace(
             id="if-optical",
@@ -100,10 +112,11 @@ def test_interface_groups_are_unified_with_entity_metric_capabilities(monkeypatc
             out_speed=100_000_000,
             bandwidth=0,
             profile=optical_profile,
+            effective_labels=["noc::interface::uplink"],
         ),
     ]
 
-    def get_configs(profile):
+    def get_configs(profile, _fallback_interval=0):
         if profile is optical_profile:
             return [(traffic_metric, 60), (optical_metric, 300)]
         return [(traffic_metric, 60)]
@@ -125,12 +138,23 @@ def test_interface_groups_are_unified_with_entity_metric_capabilities(monkeypatc
     )
     monkeypatch.setattr("noc.services.web.apps.pm.ddash.native._get_metric_configs", get_configs)
     monkeypatch.setattr("noc.services.web.apps.pm.ddash.native.metric_to_dict", serialize_metric)
+    threshold_contexts = []
+
+    def get_thresholds(context, *_args, **_kwargs):
+        threshold_contexts.append(context)
+        return {}
+
     monkeypatch.setattr(
-        "noc.services.web.apps.pm.ddash.native._get_metric_thresholds",
-        lambda *_args, **_kwargs: {},
+        "noc.services.web.apps.pm.ddash.native._get_metric_thresholds", get_thresholds
     )
 
-    groups = _get_interface_groups(SimpleNamespace(id=42))
+    groups = _get_interface_groups(
+        SimpleNamespace(
+            id=42,
+            effective_service_groups=["object-group"],
+            get_metric_discovery_interval=lambda: 300,
+        )
+    )
 
     assert len(groups) == 1
     assert groups[0]["id"] == "interfaces"
@@ -144,6 +168,16 @@ def test_interface_groups_are_unified_with_entity_metric_capabilities(monkeypatc
         "optical": 300,
     }
     assert groups[0]["entities"][1]["metric_ids"] == ["traffic"]
+    assert threshold_contexts == [
+        {
+            "labels": ["noc::interface::backbone"],
+            "service_groups": ["object-group"],
+        },
+        {
+            "labels": ["noc::interface::uplink"],
+            "service_groups": ["object-group"],
+        },
+    ]
 
 
 def test_metric_thresholds_reuse_matching_native_metric_rules(monkeypatch):

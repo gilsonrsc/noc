@@ -13,12 +13,27 @@ import {
   buildChartOption,
   buildInterfaceRankingOption,
   compactMetricName,
+  earliestSeriesTimestamp,
   formatMetricValueWithUnit,
   SERIES_PALETTE,
+  seriesStatistics,
   seriesDisplayName,
 } from "./chart";
 import {metricForDirection, rankInterfaces, summaryMetrics, utilizationFor} from "./summary";
 import {__, initializeI18n} from "./i18n";
+import {
+  formatCapacity,
+  formatPercentage,
+  formatThresholds,
+  formatTimestamp,
+  metricDomainClass,
+  objectMeta,
+  RANGE_OPTIONS,
+  REFRESH_OPTIONS,
+  summaryMetricValue,
+  thresholdMatches,
+  viewContent,
+} from "./presentation";
 import {
   capacityForSeries,
   defaultMetricView,
@@ -35,9 +50,6 @@ import type {
   DashboardGroup,
   DashboardManifest,
   DashboardSummary,
-  MetricCategory,
-  MetricDescriptor,
-  MetricThresholdDescriptor,
   SummaryEntity,
   TimeSeries,
 } from "./types";
@@ -53,90 +65,6 @@ echarts.use([
   ToolboxComponent,
   CanvasRenderer,
 ]);
-
-const RANGE_OPTIONS = [
-  {label: "1h", value: 60 * 60 * 1000},
-  {label: "6h", value: 6 * 60 * 60 * 1000},
-  {label: "24h", value: 24 * 60 * 60 * 1000},
-  {label: "7d", value: 7 * 24 * 60 * 60 * 1000},
-] as const;
-
-const REFRESH_OPTIONS = [
-  {label: "Off", value: 0},
-  {label: "30s", value: 30_000},
-  {label: "60s", value: 60_000},
-  {label: "5m", value: 300_000},
-] as const;
-
-function viewContent(): Record<MetricView, {eyebrow: string; title: string; description: string}> {
-  return {
-    all: {
-      eyebrow: __("Selected signals"),
-      title: __("Combined history"),
-      description: __("Compare the selected measurements over the same period."),
-    },
-    traffic: {
-      eyebrow: __("Interface throughput"),
-      title: __("Traffic"),
-      description: __("Inbound and outbound load, compared with the interface capacity."),
-    },
-    errors: {
-      eyebrow: __("Packet integrity"),
-      title: __("Errors and discards"),
-      description: __("Interface errors, drops and discards recorded during the selected period."),
-    },
-    health: {
-      eyebrow: __("Device resources"),
-      title: __("Health"),
-      description: __("Resource usage, reachability and operating measurements for this device."),
-    },
-    environment: {
-      eyebrow: __("Environmental telemetry"),
-      title: __("Environment"),
-      description: __("Temperature, power and environmental measurements reported by the device."),
-    },
-    optical: {
-      eyebrow: __("Transceiver diagnostics"),
-      title: __("Optical levels"),
-      description: __("Receive and transmit power with the supporting transceiver diagnostics."),
-    },
-    radio: {
-      eyebrow: __("Radio telemetry"),
-      title: __("Radio"),
-      description: __("Signal, noise, power and radio link measurements."),
-    },
-    access: {
-      eyebrow: __("Access telemetry"),
-      title: __("Access"),
-      description: __("Subscriber access and physical line measurements."),
-    },
-    sla: {
-      eyebrow: __("Service assurance"),
-      title: __("Service level"),
-      description: __("Latency, jitter, loss and service-level measurements."),
-    },
-    subscribers: {
-      eyebrow: __("Subscriber sessions"),
-      title: __("Subscribers"),
-      description: __("Session counts and subscriber service measurements."),
-    },
-    storage: {
-      eyebrow: __("Storage resources"),
-      title: __("Storage"),
-      description: __("Filesystem, disk and storage utilization measurements."),
-    },
-    routing: {
-      eyebrow: __("Control plane"),
-      title: __("Routing"),
-      description: __("Routing, neighbor and control-plane measurements."),
-    },
-    other: {
-      eyebrow: __("Additional telemetry"),
-      title: __("Other signals"),
-      description: __("Measurements available for this source that do not belong to another view."),
-    },
-  };
-}
 
 function requireElement<T extends Element>(node: T | null, message: string): T {
   if (!node) throw new Error(message);
@@ -171,35 +99,6 @@ function renderFatal(message: string, legacyUrl?: string): void {
     card.append(link);
   }
   app.append(card);
-}
-
-function objectMeta(manifest: DashboardManifest): string[] {
-  const details = [
-    manifest.object.address,
-    manifest.object.vendor,
-    manifest.object.platform,
-    manifest.object.version,
-    manifest.object.pool,
-  ];
-  return details.filter((value): value is string => Boolean(value));
-}
-
-function formatCapacity(value: number): string {
-  if (!value) return __("Not reported");
-  if (value >= 1_000_000_000) return `${value / 1_000_000_000} Gbps`;
-  if (value >= 1_000_000) return `${value / 1_000_000} Mbps`;
-  if (value >= 1_000) return `${value / 1_000} kbps`;
-  return `${value} bps`;
-}
-
-function formatThresholds(thresholds: MetricThresholdDescriptor[], unit: string): string {
-  return thresholds
-    .map((threshold) => `${threshold.op} ${formatMetricValueWithUnit(threshold.value, unit)}`)
-    .join(" · ");
-}
-
-function metricDomainClass(category: MetricCategory | undefined): string {
-  return category ? `domain-${category}` : "domain-other";
 }
 
 async function start(): Promise<void> {
@@ -322,6 +221,8 @@ async function start(): Promise<void> {
   );
   rankingHeading.append(rankingHeadingCopy, element("span", "panel-tag", "P95"));
   const rankingChartNode = element("div", "ranking-chart");
+  rankingChartNode.setAttribute("role", "img");
+  rankingChartNode.setAttribute("aria-label", __("Top interfaces by P95 utilization"));
   rankingPanel.append(rankingHeading, rankingChartNode);
   const attentionPanel = element("section", "overview-panel attention-panel");
   const attentionHeading = element("header", "panel-heading");
@@ -444,6 +345,8 @@ async function start(): Promise<void> {
   const seriesSummary = element("div", "series-summary");
   const chartFrame = element("div", "chart-frame");
   const chartNode = element("div", "chart");
+  chartNode.setAttribute("role", "img");
+  chartNode.setAttribute("aria-label", __("Performance history chart"));
   const chartState = element("section", "chart-state");
   chartState.hidden = true;
   const chartStateMark = element("span", "chart-state-mark");
@@ -494,18 +397,6 @@ async function start(): Promise<void> {
     favorites = new Set();
   }
   autoRefreshSelect.value = String(refreshIntervalMs);
-
-  function formatTimestamp(timestamp: number): string {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }).format(timestamp);
-  }
-
-  function formatPercentage(value: number | null): string {
-    return value === null ? "—" : `${value.toFixed(value >= 10 ? 0 : 1)}%`;
-  }
 
   function updateControlVisibility(): void {
     const isDetail = activeScreen === "detail";
@@ -589,12 +480,10 @@ async function start(): Promise<void> {
     seriesSummary.replaceChildren();
     const states = new Set<MonitorState>();
     for (const [index, item] of series.entries()) {
-      const values = item.points.map((point) => point[1]).filter(Number.isFinite);
-      if (values.length === 0) continue;
+      const statistics = seriesStatistics(item.points);
+      if (!statistics) continue;
       const unit = item.unit.label || item.unit.code;
-      const current = values[values.length - 1] as number;
-      const average = values.reduce((total, value) => total + value, 0) / values.length;
-      const peak = Math.max(...values);
+      const {current, average, peak} = statistics;
       const capacity = capacityForSeries(item, activeEntity);
       const utilization = capacity > 0 ? (current / capacity) * 100 : null;
       const metricInterval =
@@ -678,24 +567,6 @@ async function start(): Promise<void> {
     } else {
       setAlert("normal", "");
     }
-  }
-
-  function summaryMetricValue(
-    entity: SummaryEntity,
-    metric: MetricDescriptor | undefined,
-    reduction: "current" | "p95" = "current",
-  ): string {
-    if (!metric) return "—";
-    const value = entity.values[metric.id]?.[reduction];
-    if (value === undefined) return "—";
-    return formatMetricValueWithUnit(value, metric.unit.label || metric.unit.code);
-  }
-
-  function thresholdMatches(value: number, threshold: MetricThresholdDescriptor): boolean {
-    if (threshold.op === "<") return value < threshold.value;
-    if (threshold.op === "<=") return value <= threshold.value;
-    if (threshold.op === ">") return value > threshold.value;
-    return value >= threshold.value;
   }
 
   function renderKpi(
@@ -1251,8 +1122,7 @@ async function start(): Promise<void> {
         );
       }
       const points = response.series.reduce((total, item) => total + item.points.length, 0);
-      const timestamps = response.series.flatMap((item) => item.points.map((point) => point[0]));
-      const firstPoint = timestamps.length ? Math.min(...timestamps) : response.from;
+      const firstPoint = earliestSeriesTimestamp(response.series) ?? response.from;
       const coverage =
         firstPoint > response.from + response.interval * 2_000
           ? ` · ${__("data since")} ${new Intl.DateTimeFormat(undefined, {

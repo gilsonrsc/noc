@@ -3,6 +3,12 @@ import {__} from "./i18n";
 import {metricForDirection, rankInterfaces, utilizationFor} from "./summary";
 import type {MetricDescriptor, SummaryEntity, TimeSeries} from "./types";
 
+export interface SeriesStatistics {
+  current: number;
+  average: number;
+  peak: number;
+}
+
 export const SERIES_PALETTE = [
   "#67b7dc",
   "#64c7a1",
@@ -11,6 +17,37 @@ export const SERIES_PALETTE = [
   "#d66b72",
   "#8daac7",
 ];
+
+function animationDuration(duration: number): number {
+  return typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ? 0
+    : duration;
+}
+
+export function seriesStatistics(points: TimeSeries["points"]): SeriesStatistics | null {
+  let current = 0;
+  let peak = Number.NEGATIVE_INFINITY;
+  let total = 0;
+  let count = 0;
+  for (const [, value] of points) {
+    if (!Number.isFinite(value)) continue;
+    current = value;
+    peak = Math.max(peak, value);
+    total += value;
+    count += 1;
+  }
+  if (!count) return null;
+  return {current, average: total / count, peak};
+}
+
+export function earliestSeriesTimestamp(series: TimeSeries[]): number | null {
+  let earliest = Number.POSITIVE_INFINITY;
+  for (const item of series) {
+    for (const [timestamp] of item.points) earliest = Math.min(earliest, timestamp);
+  }
+  return Number.isFinite(earliest) ? earliest : null;
+}
 
 export function compactMetricName(name: string): string {
   const parts = name.split(" | ").filter(Boolean);
@@ -90,7 +127,7 @@ export function buildChartOption(series: TimeSeries[], from: number, to: number)
       .map((item) => item.unit.label || item.unit.code),
   );
   return {
-    animationDuration: 180,
+    animationDuration: animationDuration(180),
     color: SERIES_PALETTE,
     grid: {
       left: 12,
@@ -199,7 +236,7 @@ export function buildInterfaceRankingOption(
   const inbound = metricForDirection(metrics, "traffic", "in");
   const outbound = metricForDirection(metrics, "traffic", "out");
   return {
-    animationDuration: 220,
+    animationDuration: animationDuration(220),
     color: [SERIES_PALETTE[0] ?? "#67b7dc", SERIES_PALETTE[1] ?? "#64c7a1"],
     grid: {left: 12, right: 26, top: 34, bottom: 12, containLabel: true},
     legend: {

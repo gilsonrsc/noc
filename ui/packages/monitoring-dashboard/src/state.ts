@@ -67,13 +67,6 @@ export function capacityForSeries(series: TimeSeries, entity: DashboardEntity): 
   return 0;
 }
 
-export function utilizationState(utilization: number | null): MonitorState {
-  if (utilization === null || !Number.isFinite(utilization)) return "normal";
-  if (utilization >= 90) return "critical";
-  if (utilization >= 70) return "warning";
-  return "normal";
-}
-
 export function seriesIsStale(
   series: TimeSeries,
   intervalSeconds: number | null,

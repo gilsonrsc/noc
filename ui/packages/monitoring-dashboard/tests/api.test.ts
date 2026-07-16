@@ -13,7 +13,6 @@ import {
   metricsForEntity,
   metricsForView,
   seriesIsStale,
-  utilizationState,
 } from "../src/state";
 import {rankInterfaces, summaryMetrics, utilizationFor} from "../src/summary";
 import type {DashboardEntity, DashboardGroup, SummaryEntity} from "../src/types";
@@ -243,7 +242,7 @@ describe("monitoring state", () => {
     ]);
   });
 
-  it("calculates capacity state and stale data", () => {
+  it("calculates capacity and stale data", () => {
     const series = {
       key: "traffic-in",
       metric_id: "traffic-in",
@@ -254,8 +253,6 @@ describe("monitoring state", () => {
     };
     expect(capacityForSeries(series, entity)).toBe(1_000_000_000);
     expect(capacityForSeries({...series, name: "Interface | Errors | In"}, entity)).toBe(0);
-    expect(utilizationState(80)).toBe("warning");
-    expect(utilizationState(95)).toBe("critical");
     expect(seriesIsStale(series, 60, 400_000)).toBe(true);
   });
 });
@@ -320,6 +317,22 @@ describe("dashboard summary", () => {
     expect(rankInterfaces([quiet, summaryEntity], [trafficIn, trafficOut]).map((item) => item.id)).toEqual([
       "if-1",
       "if-2",
+    ]);
+  });
+
+  it("excludes disabled interfaces from capacity pressure", () => {
+    const disabled = {
+      ...summaryEntity,
+      id: "if-disabled",
+      admin_status: false,
+      values: {
+        ...summaryEntity.values,
+        "traffic-in": {...summaryEntity.values["traffic-in"]!, p95: 10_000_000_000},
+      },
+    };
+
+    expect(rankInterfaces([disabled, summaryEntity], [trafficIn, trafficOut])).toEqual([
+      summaryEntity,
     ]);
   });
 });

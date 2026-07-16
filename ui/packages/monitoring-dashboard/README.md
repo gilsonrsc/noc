@@ -117,7 +117,7 @@ pnpm --filter monitoring-dashboard run test
 pnpm run build:monitoring-dashboard
 ```
 
-The build copies `monitoring-dashboard.html`, JavaScript, CSS, and the source map to `ui/dist/`.
+The build copies `monitoring-dashboard.html`, JavaScript, and CSS to `ui/dist/`.
 The standard NOC production build also includes this package through `build:bundles-prod`.
 
 ## Localization

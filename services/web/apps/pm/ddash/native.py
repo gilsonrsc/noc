@@ -158,10 +158,10 @@ def parse_time_range(data: dict[str, Any]) -> tuple[datetime.datetime, datetime.
     return start, end, interval
 
 
-def _get_metric_configs(profile: Any) -> list[tuple[MetricType, int]]:
+def _get_metric_configs(profile: Any, fallback_interval: int = 0) -> list[tuple[MetricType, int]]:
     """Return stored metrics enabled by a profile."""
     result = []
-    default_interval = profile.metrics_default_interval or 0
+    default_interval = profile.metrics_default_interval or fallback_interval
     for item in profile.metrics or []:
         if isinstance(item, dict):
             metric = MetricType.get_by_id(item.get("metric_type"))
@@ -317,6 +317,9 @@ def _get_interface_groups(mo: ManagedObject) -> list[dict[str, Any]]:
     metrics_by_id: dict[str, dict[str, Any]] = {}
     entities: list[dict[str, Any]] = []
     interfaces = list(Interface.objects.filter(managed_object=mo.id))
+    if not interfaces:
+        return []
+    discovery_interval = mo.get_metric_discovery_interval()
     latest_state = _get_latest_interface_state(mo)
     for interface in interfaces:
         metric_speed, metric_oper, metric_admin = latest_state.get(interface.name, (0, None, None))
@@ -336,7 +339,7 @@ def _get_interface_groups(mo: ManagedObject) -> list[dict[str, Any]]:
             capacity_out = metric_speed
         metrics = [
             metric_to_dict(metric, interval)
-            for metric, interval in _get_metric_configs(interface.profile)
+            for metric, interval in _get_metric_configs(interface.profile, discovery_interval)
             if metric.name not in INTERFACE_STATE_METRICS
         ]
         if not metrics:
