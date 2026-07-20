@@ -44,6 +44,9 @@ Interface profiles are consolidated into one interface catalog; the per-entity f
 which signals are valid for each interface. Clients should select identifiers from this response
 rather than constructing database filters.
 
+Sanitized response examples for empty, device-health, and interface/optical scenarios are
+available in [`examples/`](examples/README.md).
+
 Query selected series:
 
 ```http

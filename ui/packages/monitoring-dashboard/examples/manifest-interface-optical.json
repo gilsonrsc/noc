@@ -1,0 +1,605 @@
+{
+  "api_version": "1.3",
+  "dashboard": "managed_object",
+  "object": {
+    "id": "1",
+    "bi_id": "1000000000000000001",
+    "name": "aggregation-switch-01",
+    "address": "192.0.2.30",
+    "description": "Example object with interface and optical metrics",
+    "platform": "Switch 48X",
+    "version": "4.5.6",
+    "vendor": "Example Networks",
+    "segment": "Example Segment",
+    "pool": "default"
+  },
+  "groups": [
+    {
+      "id": "device",
+      "title": "Device",
+      "kind": "device",
+      "module_id": "overview",
+      "metrics": [
+        {
+          "id": "142f3f0eb157c304f3dca41e",
+          "name": "CPU | Usage",
+          "description": "CPU Usage in percents",
+          "scope": "CPU",
+          "category": "health",
+          "direction": null,
+          "unit": {
+            "code": "%",
+            "label": "percent"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "module",
+            "name",
+            "object",
+            "remote_system",
+            "slot"
+          ]
+        },
+        {
+          "id": "c86aef7f9eec4f87103c538c",
+          "name": "Memory | Usage",
+          "description": "Memory Usage in percents",
+          "scope": "Memory",
+          "category": "health",
+          "direction": null,
+          "unit": {
+            "code": "%",
+            "label": "percent"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "module",
+            "object",
+            "remote_system",
+            "slot"
+          ]
+        },
+        {
+          "id": "6452acf039922dd23aaccb79",
+          "name": "Ping | RTT",
+          "description": "ICMP Ping round trip time in microseconds",
+          "scope": "Ping",
+          "category": "health",
+          "direction": null,
+          "unit": {
+            "code": "s",
+            "label": "ms"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "address",
+            "service"
+          ]
+        }
+      ],
+      "entities": [
+        {
+          "id": "1",
+          "label": "aggregation-switch-01",
+          "description": "Example object with interface and optical metrics",
+          "status": "up",
+          "admin_status": null,
+          "oper_status": true,
+          "full_duplex": null,
+          "capacity": {
+            "in_bps": 0,
+            "out_bps": 0
+          },
+          "filters": {},
+          "metric_ids": [
+            "142f3f0eb157c304f3dca41e",
+            "c86aef7f9eec4f87103c538c",
+            "6452acf039922dd23aaccb79"
+          ],
+          "metric_intervals": {
+            "142f3f0eb157c304f3dca41e": 60,
+            "c86aef7f9eec4f87103c538c": 60,
+            "6452acf039922dd23aaccb79": 60
+          },
+          "metric_thresholds": {},
+          "capabilities": [
+            "health"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interfaces",
+      "title": "Interfaces",
+      "kind": "interface",
+      "module_id": "interfaces",
+      "metrics": [
+        {
+          "id": "83b9e6a4162921d87516c7de",
+          "name": "Interface | DOM | Bias Current",
+          "description": "Laser bias current",
+          "scope": "Interface",
+          "category": "optical",
+          "direction": null,
+          "unit": {
+            "code": "A",
+            "label": "mA"
+          },
+          "color": "#ffffff",
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        },
+        {
+          "id": "e8fad9d03323fa7c9ea69f53",
+          "name": "Interface | DOM | RxPower",
+          "description": "Signal Receive Power on transmitter",
+          "scope": "Interface",
+          "category": "optical",
+          "direction": null,
+          "unit": {
+            "code": "dBm",
+            "label": "dBm"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        },
+        {
+          "id": "e4d798ab09d83e6167fdcc24",
+          "name": "Interface | DOM | Temperature",
+          "description": "Temparature, in Celsius",
+          "scope": "Interface",
+          "category": "optical",
+          "direction": null,
+          "unit": {
+            "code": "C",
+            "label": "C"
+          },
+          "color": "#fade2a",
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        },
+        {
+          "id": "7e30d71abbfa2d1bcbabdfed",
+          "name": "Interface | DOM | TxPower",
+          "description": "Signal Transmit Power on transmitter",
+          "scope": "Interface",
+          "category": "optical",
+          "direction": null,
+          "unit": {
+            "code": "dBm",
+            "label": "dBm"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        },
+        {
+          "id": "b9e7f6ed5b23391def8f7393",
+          "name": "Interface | DOM | Voltage",
+          "description": "Transceiver supply voltage",
+          "scope": "Interface",
+          "category": "optical",
+          "direction": null,
+          "unit": {
+            "code": "VDC",
+            "label": "V"
+          },
+          "color": "#e02f44",
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        },
+        {
+          "id": "0001f2f9d792852183be1330",
+          "name": "Interface | Errors | In",
+          "description": "Errors when receive packet",
+          "scope": "Interface",
+          "category": "errors",
+          "direction": "in",
+          "unit": {
+            "code": "pps",
+            "label": "pps"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        },
+        {
+          "id": "5156640033b22b7c4729a6a9",
+          "name": "Interface | Errors | Out",
+          "description": "Errors when transmit packet",
+          "scope": "Interface",
+          "category": "errors",
+          "direction": "out",
+          "unit": {
+            "code": "pps",
+            "label": "pps"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        },
+        {
+          "id": "36fd375c36fe77d35ebc0239",
+          "name": "Interface | Load | In",
+          "description": "Interface input throughput",
+          "scope": "Interface",
+          "category": "traffic",
+          "direction": "in",
+          "unit": {
+            "code": "bit/s",
+            "label": "bps"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        },
+        {
+          "id": "c2761b0b314f7f61369d73fc",
+          "name": "Interface | Load | Out",
+          "description": "Interface output throughput",
+          "scope": "Interface",
+          "category": "traffic",
+          "direction": "out",
+          "unit": {
+            "code": "bit/s",
+            "label": "bps"
+          },
+          "color": null,
+          "is_delta": false,
+          "interval": 60,
+          "filter_fields": [
+            "chassis",
+            "cpe",
+            "interface",
+            "module",
+            "object",
+            "queue",
+            "radio_standart",
+            "remote_system",
+            "service",
+            "slot",
+            "subinterface",
+            "tos",
+            "traffic_class",
+            "wlan_band",
+            "wlan_channel",
+            "wlan_channel_width",
+            "wlan_client",
+            "wlan_client_name"
+          ]
+        }
+      ],
+      "entities": [
+        {
+          "id": "200000000000000000000001",
+          "label": "HundredGigE0/0/1",
+          "description": "Backbone uplink",
+          "status": "Up/100G/Full",
+          "admin_status": true,
+          "oper_status": true,
+          "full_duplex": true,
+          "capacity": {
+            "in_bps": 100000000000,
+            "out_bps": 100000000000
+          },
+          "filters": {
+            "interface": "HundredGigE0/0/1",
+            "subinterface": "",
+            "queue": "",
+            "traffic_class": ""
+          },
+          "metric_ids": [
+            "b9e7f6ed5b23391def8f7393",
+            "5156640033b22b7c4729a6a9",
+            "36fd375c36fe77d35ebc0239",
+            "7e30d71abbfa2d1bcbabdfed",
+            "e4d798ab09d83e6167fdcc24",
+            "0001f2f9d792852183be1330",
+            "83b9e6a4162921d87516c7de",
+            "c2761b0b314f7f61369d73fc",
+            "e8fad9d03323fa7c9ea69f53"
+          ],
+          "metric_intervals": {
+            "36fd375c36fe77d35ebc0239": 60,
+            "c2761b0b314f7f61369d73fc": 60,
+            "0001f2f9d792852183be1330": 60,
+            "5156640033b22b7c4729a6a9": 60,
+            "e4d798ab09d83e6167fdcc24": 60,
+            "83b9e6a4162921d87516c7de": 60,
+            "7e30d71abbfa2d1bcbabdfed": 60,
+            "e8fad9d03323fa7c9ea69f53": 60,
+            "b9e7f6ed5b23391def8f7393": 60
+          },
+          "metric_thresholds": {},
+          "capabilities": [
+            "traffic",
+            "errors",
+            "optical"
+          ]
+        },
+        {
+          "id": "200000000000000000000002",
+          "label": "Ethernet0/0/1",
+          "description": "Aggregation link",
+          "status": "Up/10G/Full",
+          "admin_status": true,
+          "oper_status": true,
+          "full_duplex": true,
+          "capacity": {
+            "in_bps": 10000000000,
+            "out_bps": 10000000000
+          },
+          "filters": {
+            "interface": "Ethernet0/0/1",
+            "subinterface": "",
+            "queue": "",
+            "traffic_class": ""
+          },
+          "metric_ids": [
+            "5156640033b22b7c4729a6a9",
+            "36fd375c36fe77d35ebc0239",
+            "0001f2f9d792852183be1330",
+            "c2761b0b314f7f61369d73fc"
+          ],
+          "metric_intervals": {
+            "36fd375c36fe77d35ebc0239": 60,
+            "c2761b0b314f7f61369d73fc": 60,
+            "0001f2f9d792852183be1330": 60,
+            "5156640033b22b7c4729a6a9": 60
+          },
+          "metric_thresholds": {},
+          "capabilities": [
+            "traffic",
+            "errors"
+          ]
+        },
+        {
+          "id": "200000000000000000000003",
+          "label": "Ethernet0/0/2",
+          "description": "Available port",
+          "status": "Down/10G/Full",
+          "admin_status": true,
+          "oper_status": false,
+          "full_duplex": true,
+          "capacity": {
+            "in_bps": 10000000000,
+            "out_bps": 10000000000
+          },
+          "filters": {
+            "interface": "Ethernet0/0/2",
+            "subinterface": "",
+            "queue": "",
+            "traffic_class": ""
+          },
+          "metric_ids": [
+            "5156640033b22b7c4729a6a9",
+            "36fd375c36fe77d35ebc0239",
+            "0001f2f9d792852183be1330",
+            "c2761b0b314f7f61369d73fc"
+          ],
+          "metric_intervals": {
+            "36fd375c36fe77d35ebc0239": 60,
+            "c2761b0b314f7f61369d73fc": 60,
+            "0001f2f9d792852183be1330": 60,
+            "5156640033b22b7c4729a6a9": 60
+          },
+          "metric_thresholds": {},
+          "capabilities": [
+            "traffic",
+            "errors"
+          ]
+        }
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "overview",
+      "title": "Overview",
+      "kind": "device",
+      "group_ids": [
+        "device"
+      ],
+      "capabilities": [
+        "health"
+      ]
+    },
+    {
+      "id": "interfaces",
+      "title": "Interfaces",
+      "kind": "interface",
+      "group_ids": [
+        "interfaces"
+      ],
+      "capabilities": [
+        "traffic",
+        "errors",
+        "optical"
+      ]
+    }
+  ],
+  "capabilities": [
+    "traffic",
+    "errors",
+    "health",
+    "optical"
+  ],
+  "query": {
+    "url": "/pm/ddash/query/",
+    "method": "POST"
+  },
+  "summary": {
+    "url": "/pm/ddash/summary/",
+    "method": "POST"
+  },
+  "legacy_url": "/ui/grafana/dashboard/script/noc.js?dashboard=mo&id=1"
+}

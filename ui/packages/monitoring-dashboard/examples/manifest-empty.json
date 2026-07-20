@@ -1,0 +1,28 @@
+{
+  "api_version": "1.3",
+  "dashboard": "managed_object",
+  "object": {
+    "id": "1",
+    "bi_id": "1000000000000000001",
+    "name": "edge-appliance-01",
+    "address": "192.0.2.10",
+    "description": "Example object without configured metrics",
+    "platform": null,
+    "version": null,
+    "vendor": null,
+    "segment": "Example Segment",
+    "pool": "default"
+  },
+  "groups": [],
+  "modules": [],
+  "capabilities": [],
+  "query": {
+    "url": "/pm/ddash/query/",
+    "method": "POST"
+  },
+  "summary": {
+    "url": "/pm/ddash/summary/",
+    "method": "POST"
+  },
+  "legacy_url": "/ui/grafana/dashboard/script/noc.js?dashboard=mo&id=1"
+}
